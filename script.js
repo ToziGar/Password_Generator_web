@@ -134,7 +134,7 @@ function generatePassword(){
     // Generar passphrase usando wordList si está disponible
     if(wordList && wordList.length>0){
       const pw = [];
-      for(let i=0;i<words.value;i++) pw.push(randomFrom(wordList));
+      for(let i=0;i<words.value;i++) pw.push(secureChoice(wordList));
       return pw.join(' ');
     }
     // fallback: palabras pseudoaleatorias
@@ -152,7 +152,7 @@ function generatePassword(){
 
   const length = parseInt(lengthEl.value,10);
   let out = '';
-  const get = () => pool[Math.floor(Math.random()*pool.length)];
+  const get = () => pool[secureRandomInt(pool.length)];
   for(let i=0;i<length;i++) out += get();
   return out;
 }

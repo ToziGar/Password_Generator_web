@@ -1305,9 +1305,53 @@ async function openTutorial(){
   await renderTutorialStep();
 }
 
+// Tutorial overlay / spotlight helpers
+function ensureTutorialOverlay(){
+  if(document.getElementById('pgw-tutorial-overlay')) return;
+  const ov = document.createElement('div'); ov.id = 'pgw-tutorial-overlay'; ov.className = 'tutorial-overlay';
+  const spot = document.createElement('div'); spot.id = 'pgw-tutorial-spot'; spot.className = 'tutorial-spot';
+  ov.appendChild(spot);
+  document.body.appendChild(ov);
+}
+
+function hideTutorialOverlay(){
+  const ov = document.getElementById('pgw-tutorial-overlay');
+  if(!ov) return;
+  try{ ov.classList.remove('visible'); }catch(e){}
+  const spot = document.getElementById('pgw-tutorial-spot'); if(spot) try{ spot.style.width = '0px'; spot.style.height = '0px'; spot.style.left = '-9999px'; spot.style.top = '-9999px'; }catch(e){}
+}
+
+function showSpotFor(node){
+  try{
+    if(!node) { hideTutorialOverlay(); return; }
+    ensureTutorialOverlay();
+    const reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const ov = document.getElementById('pgw-tutorial-overlay'); const spot = document.getElementById('pgw-tutorial-spot');
+    if(!ov || !spot) return;
+    const rect = node.getBoundingClientRect();
+    const left = Math.max(8, rect.left - 8);
+    const top = Math.max(8, rect.top - 8);
+    const w = Math.max(32, rect.width + 16);
+    const h = Math.max(24, rect.height + 16);
+    // Scroll into view (smooth unless reduced motion)
+    try{ if(!reduced) node.scrollIntoView({behavior:'smooth', block:'center', inline:'center'}); else node.scrollIntoView({block:'center'}); }catch(e){}
+    // Position the overlay spot
+    if(reduced || !window.gsap){
+      ov.classList.add('visible');
+      spot.style.left = `${left}px`; spot.style.top = `${top}px`; spot.style.width = `${w}px`; spot.style.height = `${h}px`; spot.style.transform = 'scale(1)';
+    } else {
+      // animate overlay and spot with GSAP
+      try{ gsap.killTweensOf(ov); gsap.killTweensOf(spot); }catch(e){}
+      try{ gsap.to(ov, {duration:0.28, opacity:1, ease:'power2.out', onStart: ()=>ov.classList.add('visible')}); }catch(e){}
+      try{ gsap.fromTo(spot, {left: left-8, top: top-8, width: w+16, height: h+16, scale:1.06, opacity:0.95}, {left, top, width: w, height: h, scale:1, opacity:1, duration:0.48, ease:'power3.out'}); }catch(e){}
+    }
+  }catch(err){ console.warn('showSpotFor failed', err); }
+}
+
 function closeTutorial(restore=true){
   const modal = el('tutorialModal');
   if(modal){ modal.style.display = 'none'; if(modal._cleanup) try{ modal._cleanup(); delete modal._cleanup; }catch(e){} }
+  try{ hideTutorialOverlay(); }catch(e){}
   try{ document.querySelector('main.container').removeAttribute('aria-hidden'); }catch(e){}
   if(restore && _tutorialSnapshot){
     try{
@@ -1327,6 +1371,12 @@ async function renderTutorialStep(){
   const body = el('tutorialStepBody');
   if(title) title.textContent = s.title || ('Paso ' + (_tutorialIndex+1));
   if(body) body.textContent = s.body || '';
+  // Announce step for screen readers (aria-live)
+  try{
+    let ann = document.getElementById('pgw-tutorial-announce');
+    if(!ann){ ann = document.createElement('div'); ann.id = 'pgw-tutorial-announce'; ann.className = 'visually-hidden'; ann.setAttribute('aria-live','polite'); document.body.appendChild(ann); }
+    ann.textContent = `Paso ${_tutorialIndex+1}: ${s.title}. ${s.body}`;
+  }catch(e){}
   // Small entrance animations for tutorial text (GSAP if available)
   try{
     if(window.gsap){
@@ -1346,6 +1396,17 @@ async function renderTutorialStep(){
       for(const sel of sels){ try{ const node = document.querySelector(sel); if(node) node.classList.add('tutorial-highlight'); }catch(e){} }
     }
   }catch(e){ console.error('highlight apply failed', e); }
+
+  // Show spotlight overlay for the primary highlighted element (if any)
+  try{
+    if(s.highlight){
+      const sels = Array.isArray(s.highlight) ? s.highlight : [s.highlight];
+      const node = document.querySelector(sels[0]);
+      if(node) showSpotFor(node); else hideTutorialOverlay();
+    } else {
+      hideTutorialOverlay();
+    }
+  }catch(e){ console.error('spotlight failed', e); }
 
   // brief pulse on highlighted elements to draw attention
   try{

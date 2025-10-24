@@ -117,3 +117,24 @@ Gracias por probar el proyecto. Si deseas, puedo añadir ahora:
 
 Indica qué prefieres y lo implemento a continuación.
 
+
+---
+
+Actualización rápida (25-Oct-2025) — UI polish
+------------------------------------------------
+- Reorganizado el toolbar: acciones primarias (Generar, Regenerar, Copiar) ahora están agrupadas y son más prominentes; acciones secundarias (Tutorial, Exportar, Importar) están a la derecha.
+- Reducción de transparencias y blur en tarjetas y modales para mejorar legibilidad.
+- Botones rediseñados: jerarquía clara entre primario y secundario, tamaños consistentes y mejores estados de enfoque/hover.
+- Mejoras de accesibilidad: soporte `prefers-reduced-motion`, focus-visible, tamaños mínimos de objetivo táctil.
+
+Prueba rápida después de los cambios
+-----------------------------------
+1. Sirve la carpeta (por ejemplo `python -m http.server 8000`) y abre http://localhost:8000
+2. Verifica el header, el grupo de acciones y que el botón "Generar" destaque.
+3. Abre el tutorial (Shift+T) y revisa que el contenido es legible y que los highlights son sutiles.
+
+Si quieres, puedo:
+- Ajustar la tipografía (ej. cambiar a SF Pro/Inter refinado) y exportar un screenshot de ejemplo.
+- Implementar una coreografía GSAP paso a paso para el tutorial (scroll+spotlight+announce).
+
+

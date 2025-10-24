@@ -1,5 +1,28 @@
 // Generador y evaluador de contraseñas (todo en español)
 console.log('script.js cargado');
+
+// Pequeño indicador de estado en la página (para depuración visible sin abrir la consola)
+let statusEl = document.getElementById('pgw-status');
+if(!statusEl){
+  statusEl = document.createElement('div');
+  statusEl.id = 'pgw-status';
+  statusEl.style.position = 'fixed';
+  statusEl.style.right = '12px';
+  statusEl.style.top = '12px';
+  statusEl.style.padding = '8px 10px';
+  statusEl.style.background = 'rgba(0,0,0,0.45)';
+  statusEl.style.color = 'white';
+  statusEl.style.borderRadius = '8px';
+  statusEl.style.fontSize = '12px';
+  statusEl.style.zIndex = 9999;
+  statusEl.textContent = 'PGW: script cargado';
+  document.body.appendChild(statusEl);
+}
+
+window.addEventListener('error', (ev) => {
+  console.error('Unhandled error:', ev.error || ev.message, ev);
+  try{ statusEl.textContent = 'PGW ERROR: ' + (ev.message || (ev.error && ev.error.message) || 'see console'); }catch(e){}
+});
 const el = id => document.getElementById(id);
 
 // Elementos
@@ -285,6 +308,22 @@ function funnyFor(seconds, entropy){
 
 function randomFrom(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
 
+// Secure random integer in [0, max) using Web Crypto (avoids bias with rejection sampling)
+function secureRandomInt(max){
+  if(max <= 0) return 0;
+  const uint32Max = 0xFFFFFFFF;
+  const range = max;
+  const maxValid = Math.floor((uint32Max + 1) / range) * range - 1;
+  const b = new Uint32Array(1);
+  while(true){
+    window.crypto.getRandomValues(b);
+    const v = b[0] >>> 0;
+    if(v <= maxValid) return v % range;
+  }
+}
+
+function secureChoice(arr){ return arr[secureRandomInt(arr.length)]; }
+
 function render(){
   const opts = {
     passphrase: passphrase.checked,
@@ -419,20 +458,30 @@ function launchConfetti(){
 lengthEl.addEventListener('input', updateUI);
 words.addEventListener('input', updateUI);
 passphrase.addEventListener('change', updateUI);
-generateBtn.addEventListener('click', ()=>{ render(); });
-// Fallback: también exponemos un onclick directo por si algo impide el listener estándar
-if(generateBtn) generateBtn.onclick = () => { try{ render(); } catch(e){ console.error('Error en render desde onclick fallback', e); } };
-regenerateBtn.addEventListener('click', ()=>{ render(); });
-copyBtn.addEventListener('click', ()=>{
-  navigator.clipboard.writeText(passwordOut.value).then(()=>{
-    copyBtn.textContent = '¡Copiado!';
-    // animación del campo
-    passwordOut.classList.add('flash');
-    setTimeout(()=>passwordOut.classList.remove('flash'),700);
-    setTimeout(()=>copyBtn.textContent = 'Copiar',1200);
+if(generateBtn){
+  generateBtn.addEventListener('click', ()=>{ console.log('generateBtn clicked'); statusEl.textContent = 'PGW: Generar pulsado'; render(); });
+  // Fallback: también exponemos un onclick directo por si algo impide el listener estándar
+  generateBtn.onclick = () => { try{ console.log('generateBtn onclick fallback'); statusEl.textContent = 'PGW: Generar onclick'; render(); } catch(e){ console.error('Error en render desde onclick fallback', e); statusEl.textContent = 'PGW: error al generar (ver consola)'; } };
+} else {
+  console.warn('generateBtn no encontrado');
+  statusEl.textContent = 'PGW: generateBtn no encontrado';
+}
+if(regenerateBtn){ regenerateBtn.addEventListener('click', ()=>{ console.log('regenerate clicked'); statusEl.textContent = 'PGW: Regenerar'; render(); }); }
+else { console.warn('regenerateBtn no encontrado'); }
+if(copyBtn){
+  copyBtn.addEventListener('click', ()=>{
+    navigator.clipboard.writeText(passwordOut.value).then(()=>{
+      copyBtn.textContent = '¡Copiado!';
+      // animación del campo
+      passwordOut.classList.add('flash');
+      setTimeout(()=>passwordOut.classList.remove('flash'),700);
+      setTimeout(()=>copyBtn.textContent = 'Copiar',1200);
+    });
+    console.log('copyBtn clicked');
   });
-});
+} else { console.warn('copyBtn no encontrado'); }
 
+// reaccionar a cambios en tasa seleccionada
 // reaccionar a cambios en tasa seleccionada
 if(rateSelect) rateSelect.addEventListener('change', ()=>{ customRate.value = rateSelect.value; render(); });
 if(customRate) customRate.addEventListener('input', ()=>{ render(); });

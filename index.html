@@ -105,6 +105,10 @@
           <div class="modal-body">Introduce la contraseña maestra para cifrar/descifrar el backup. No se guardará en el navegador.</div>
           <label for="masterInput" class="visually-hidden">Contraseña maestra</label>
           <input id="masterInput" class="modal-input" type="password" autocomplete="new-password" placeholder="Contraseña maestra">
+          <div id="masterConfirmWrap" style="display:none;margin-top:8px">
+            <label for="masterInputConfirm" class="visually-hidden">Confirmar contraseña maestra</label>
+            <input id="masterInputConfirm" class="modal-input" type="password" autocomplete="new-password" placeholder="Repite la contraseña maestra para confirmar">
+          </div>
           <div class="modal-actions">
             <button id="masterCancel" class="btn">Cancelar</button>
             <button id="masterConfirm" class="btn primary">Confirmar</button>

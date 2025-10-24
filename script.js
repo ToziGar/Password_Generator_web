@@ -734,6 +734,8 @@ function breakdownEntropyDetailed(pw){
     updateUI();
     await render();
     statusEl.textContent = 'PGW: listo';
+    // Kick off KDF ETA estimation in background
+    try{ if(kdfIterations) estimateKdfEta(Number(kdfIterations.value)); }catch(e){/* ignore */}
   }catch(e){
     console.error('Error al inicializar render/updateUI', e);
     statusEl.textContent = 'PGW: init error (ver consola)';
@@ -1009,6 +1011,7 @@ async function measureKdfSample(){
   if(kdfBenchmark.msPerIteration) return kdfBenchmark.msPerIteration;
   const sample = kdfBenchmark.sampleIterations;
   try{
+    ensureWorker();
     const t0 = performance.now();
     await workerRequest('pbkdf2', { password: 'benchmark-pgw', salt: 'bench', iterations: sample, length: 32 });
     const t1 = performance.now();

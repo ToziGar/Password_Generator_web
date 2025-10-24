@@ -29,6 +29,32 @@ const DIGITS = '0123456789';
 // Para frases usamos un pool aproximado (simulamos lista de palabras)
 const WORD_POOL = 2048; // tamaño típico usado en listas de palabras
 
+// Frases graciosas adicionales (seleccionadas aleatoriamente)
+const FUNNY_PHRASES = [
+  '¡Ups! Esa contraseña parece un helado de siete sabores, difícil de morder.',
+  'Si un hacker lo intenta, al primer sorbo se rinde y se toma un café.',
+  'Esta contraseña podría firmar libros por sí sola.',
+  '¡Casi inhumana! Incluso tu cactus la olvidaría.',
+  'Protegida como la receta secreta de la abuela.',
+  'Esta clave tiene más capas que una cebolla (pero sin lágrimas).',
+  'Más segura que la caja fuerte del banco de los cuentos.',
+  'Si fuera un pergamino, estaría en un museo.',
+  'Nivel: criptógrafo jubilado aprobado.',
+  'Advertencia: podría despertar a los dinosaurios del sueño.',
+  'Muy buena — tu futura yo te lo agradecerá.',
+  'Esta contraseña exige una taza de té y tranquilidad para ser atacada.',
+  'Requiere permiso del consejo de seguridad intergaláctico para probarla.',
+  'Se recomienda contársela solo a tu espejo y a tu mejor amigo imaginario.',
+  'Suena a leyenda urbana: "La contraseña que venció a los hackers".'
+];
+
+const IMPOSSIBLE_PHRASES = [
+  '¡Imposible! Tendrías que contratar una excavación arqueológica para encontrar tiempo suficiente.',
+  'Solo descifrable por futuros historiadores con máquinas del tiempo.',
+  '¡Alerta! Protección nivel: fortaleza impenetrable — trae bocadillos para la espera.',
+  'Esta es la definición de "prácticamente imposible" — felicidades, maestro/a.'
+];
+
 function updateUI(){
   lengthVal.textContent = lengthEl.value;
   wordsVal.textContent = words.value;
@@ -123,15 +149,17 @@ function formatDuration(seconds){
 function minutesLessThan(v, limit){ return v < limit ? v : limit }
 
 function funnyFor(seconds){
-  if(!isFinite(seconds)) return '¡Imposible! Tendrías que enseñar generación de contraseñas a tus tataranietos y a una civilización de hace millones de años.';
+  if(!isFinite(seconds)) return randomFrom(IMPOSSIBLE_PHRASES);
   const years = seconds/60/60/24/365.25;
-  if(years > 1e9) return '¡Olvídalo! Mejor dedícate a aprender un instrumento; la contraseña vivirá más que tú.';
+  if(years > 1e9) return randomFrom(IMPOSSIBLE_PHRASES);
   if(years > 1e6) return 'Se tardaría tanto que podrías escribir una novela completa mientras tanto.';
   if(years > 1000) return 'Solo descifrable por arqueólogos del futuro con mucho tiempo libre.';
-  if(years > 100) return 'Muy resistente — incluso tus nietos lo agradecerán.';
+  if(years > 100) return randomFrom(FUNNY_PHRASES);
   if(years > 1) return 'Bastante robusta: un buen equilibrio entre seguridad y usabilidad.';
-  return 'Precaución: fácil de atacar en poco tiempo. Considere aumentar longitud o variedad de caracteres.';
+  return randomFrom(FUNNY_PHRASES.concat(['Precaución: fácil de atacar en poco tiempo. Considera aumentar longitud o variedad de caracteres.']));
 }
+
+function randomFrom(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
 
 function render(){
   const opts = {
@@ -157,7 +185,73 @@ function render(){
 
   const crack = estimateCrackTime(entropy);
   crackTimeEl.textContent = crack.label;
-  funnyEl.textContent = funnyFor(crack.seconds);
+  // Mostrar frase con animación aleatoria
+  const phrase = funnyFor(crack.seconds);
+  showFunnyPhrase(phrase);
+
+  // Si la contraseña es extremadamente fuerte, lanzamos confetti
+  if(entropy >= 128){
+    launchConfetti();
+  }
+}
+
+function showFunnyPhrase(text){
+  funnyEl.classList.remove('show');
+  // force reflow to restart transition
+  void funnyEl.offsetWidth;
+  funnyEl.textContent = text;
+  funnyEl.classList.add('show');
+}
+
+// Simple confetti implementation (canvas)
+function launchConfetti(){
+  const canvas = document.getElementById('confetti');
+  if(!canvas) return;
+  const ctx = canvas.getContext('2d');
+  let w = canvas.width = window.innerWidth;
+  let h = canvas.height = window.innerHeight;
+  const colors = ['#ff7a7a','#ffd36b','#7c3aed','#06b6d4','#60a5fa','#34d399'];
+  const particles = [];
+  const count = 80;
+  for(let i=0;i<count;i++){
+    particles.push({
+      x: Math.random()*w,
+      y: Math.random()*-h/2,
+      vx: (Math.random()-0.5)*6,
+      vy: 2+Math.random()*6,
+      r: 6+Math.random()*6,
+      color: colors[Math.floor(Math.random()*colors.length)],
+      rot: Math.random()*360,
+      vr: (Math.random()-0.5)*10
+    });
+  }
+
+  let start = null;
+  function frame(ts){
+    if(!start) start = ts;
+    const elapsed = ts-start;
+    ctx.clearRect(0,0,w,h);
+    for(const p of particles){
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += 0.08; // gravity
+      p.rot += p.vr;
+      ctx.save();
+      ctx.translate(p.x,p.y);
+      ctx.rotate(p.rot*Math.PI/180);
+      ctx.fillStyle = p.color;
+      ctx.fillRect(-p.r/2,-p.r/2,p.r,p.r*0.6);
+      ctx.restore();
+    }
+    // remove out-of-screen particles
+    for(let i=particles.length-1;i>=0;i--){ if(particles[i].y>h+50) particles.splice(i,1); }
+    if(elapsed < 1600 && particles.length>0){
+      requestAnimationFrame(frame);
+    } else {
+      ctx.clearRect(0,0,w,h);
+    }
+  }
+  requestAnimationFrame(frame);
 }
 
 // Eventos

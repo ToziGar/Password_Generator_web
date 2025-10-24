@@ -54,8 +54,18 @@
         </div>
 
         <div class="crack">
-          <label>Estimación tiempo de crack (velocidad alta):</label>
-          <div id="crackTime">—</div>
+            <label>Estimaciones tiempo de crack:</label>
+            <div class="crack-row">
+              <select id="rateSelect" aria-label="Seleccionar tasa de ataque">
+                <option value="1e3">Online (1e3/s)</option>
+                <option value="1e6">Botnets (1e6/s)</option>
+                <option value="1e10" selected>GPU cluster (1e10/s)</option>
+                <option value="1e12">Super cluster (1e12/s)</option>
+              </select>
+              <label class="muted small">o personalizar:</label>
+              <input id="customRate" type="number" value="1e10" step="1" min="1">
+            </div>
+            <div id="crackEstimates">—</div>
           <div id="funny" class="funny phrase-anim" aria-live="polite"></div>
         </div>
       </section>

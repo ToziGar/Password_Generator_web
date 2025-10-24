@@ -162,11 +162,13 @@ function evaluateStrength(entropy){
 
 function estimateCrackTime(entropy, rate){
   // rate: intentos por segundo
+  // Queremos estimar el tiempo medio hasta adivinar: ~ (2^entropy)/2 / rate = 2^(entropy-1)/rate
+  // Para evitar overflow, trabajamos en log10:
+  // log10(seconds) = (entropy-1)*log10(2) - log10(rate)
   rate = Number(rate) || 1e10;
-  // log10(seconds) = entropy*log10(2) - log10(rate)
-  const log10sec = entropy * Math.LOG10E * Math.log(2) - Math.log10(rate);
+  const log10_2 = Math.LOG10E * Math.log(2); // log10(2)
+  const log10sec = (entropy - 1) * log10_2 - Math.log10(rate);
   if(!isFinite(log10sec)) return {label:'Demasiado grande',seconds:Infinity};
-
   const seconds = Math.pow(10, log10sec);
   return {label:formatDuration(seconds), seconds};
 }
@@ -186,27 +188,34 @@ function formatDuration(seconds){
   const years = days/365.25;
   if(seconds < 1) return `${Math.round(seconds*1000)} ms`;
   if(seconds < 60) return `${Math.round(seconds)} s`;
-  if(minutesLessThan(hours,1)) return `${Math.round(minutesLessThan(seconds/60, 60))} min`;
+  if(mins < 60) return `${Math.round(mins)} min`;
   if(hours < 24) return `${Math.round(hours)} h`;
   if(days < 365) return `${Math.round(days)} d`;
   if(years < 1000) return `${Math.round(years)} años`;
   if(years < 1e6) return `${(years/1000).toFixed(2)} mil años`;
   if(years < 1e9) return `${(years/1e6).toFixed(2)} millones de años`;
-  if(years < 1e18) return `${(years/1e9).toFixed(2)} mil millones de años`;
+  if(years < 1e12) return `${(years/1e9).toFixed(2)} mil millones de años`;
   return 'Prácticamente imposible';
 }
 
 function minutesLessThan(v, limit){ return v < limit ? v : limit }
 
-function funnyFor(seconds){
+// Decide frases/feedback en función de la ENTROPÍA (más directo y accionable)
+function funnyFor(seconds, entropy){
+  // si no hay número, devolvemos imposible
   if(!isFinite(seconds)) return pickImpossible();
-  const years = seconds/60/60/24/365.25;
-  if(years > 1e9) return pickImpossible();
-  if(years > 1e6) return 'Se tardaría tanto que podrías escribir una novela completa mientras tanto.';
-  if(years > 1000) return 'Solo descifrable por arqueólogos del futuro con mucho tiempo libre.';
-  if(years > 100) return pickFunny();
-  if(years > 1) return 'Bastante robusta: un buen equilibrio entre seguridad y usabilidad.';
-  return pickFunny();
+  // Umbrales por entropía (bits)
+  // - <28 bits: débil — aconsejar aumentar longitud o añadir tipos de caracteres
+  // - 28-35 bits: aceptable — sugerir mejorar
+  // - 36-59 bits: buena — frase ligera
+  // - 60-127 bits: muy fuerte — frase celebratoria
+  // - >=128 bits: prácticamente imposible — frases épicas
+  if(entropy >= 128) return pickImpossible();
+  if(entropy >= 60) return pickFunny();
+  if(entropy >= 36) return pickFunny();
+  if(entropy >= 28) return 'Aceptable, pero considera aumentar la longitud o añadir símbolos.';
+  // <28
+  return 'Débil — aumenta la longitud y añade mayúsculas, números y símbolos.';
 }
 
 function randomFrom(arr){ return arr[Math.floor(Math.random()*arr.length)]; }

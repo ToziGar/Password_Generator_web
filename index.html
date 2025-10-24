@@ -98,6 +98,19 @@
     </main>
 
       <canvas id="confetti" aria-hidden="true"></canvas>
+      <!-- Master password modal (hidden by default). Used instead of prompt() for accessibility -->
+      <div id="masterModal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="masterModalLabel" style="display:none">
+        <div class="modal-dialog">
+          <div id="masterModalLabel" class="modal-header">Contraseña maestra</div>
+          <div class="modal-body">Introduce la contraseña maestra para cifrar/descifrar el backup. No se guardará en el navegador.</div>
+          <label for="masterInput" class="visually-hidden">Contraseña maestra</label>
+          <input id="masterInput" class="modal-input" type="password" autocomplete="new-password" placeholder="Contraseña maestra">
+          <div class="modal-actions">
+            <button id="masterCancel" class="btn">Cancelar</button>
+            <button id="masterConfirm" class="btn primary">Confirmar</button>
+          </div>
+        </div>
+      </div>
       <script src="script.js"></script>
     </body>
   </html>

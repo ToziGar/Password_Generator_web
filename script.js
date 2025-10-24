@@ -836,6 +836,54 @@ async function decryptBackupObject(blobObj, masterPass){
   return JSON.parse(json);
 }
 
+// Modal helper: show a modal to ask for the master password (replaces prompt())
+function ensureMasterModalElements(){
+  const modal = el('masterModal');
+  if(!modal) return null;
+  return {
+    modal,
+    header: modal.querySelector('.modal-header'),
+    body: modal.querySelector('.modal-body'),
+    input: el('masterInput'),
+    confirmBtn: el('masterConfirm'),
+    cancelBtn: el('masterCancel')
+  };
+}
+
+function showMasterModal(promptText, placeholder){
+  return new Promise((resolve)=>{
+    const elems = ensureMasterModalElements();
+    if(!elems){
+      // fallback to window.prompt if modal missing
+      const res = window.prompt(promptText || 'Contraseña maestra:');
+      resolve(res);
+      return;
+    }
+    const {modal, header, body, input, confirmBtn, cancelBtn} = elems;
+    try{ if(header) header.textContent = 'Contraseña maestra'; }catch(e){}
+    try{ if(body) body.textContent = promptText || 'Introduce la contraseña maestra.'; }catch(e){}
+    input.value = '';
+    input.placeholder = placeholder || '';
+    modal.style.display = 'flex';
+    // small timeout to ensure it's visible before focus
+    setTimeout(()=>{ try{ input.focus(); }catch(e){} }, 50);
+
+    const cleanup = (val)=>{
+      try{ modal.style.display = 'none'; }catch(e){}
+      confirmBtn.removeEventListener('click', onConfirm);
+      cancelBtn.removeEventListener('click', onCancel);
+      document.removeEventListener('keydown', onKey);
+      resolve(val);
+    };
+    const onConfirm = ()=> cleanup(input.value || null);
+    const onCancel = ()=> cleanup(null);
+    const onKey = (e)=>{ if(e.key === 'Enter') onConfirm(); if(e.key === 'Escape') onCancel(); };
+    confirmBtn.addEventListener('click', onConfirm);
+    cancelBtn.addEventListener('click', onCancel);
+    document.addEventListener('keydown', onKey);
+  });
+}
+
 // Wire buttons
 const exportBtn = el('exportBtn');
 const importBtn = el('importBtn');
@@ -862,8 +910,8 @@ if(exportBtn){
           seed: el('seedInput')?el('seedInput').value:''
         }
       };
-      const master = prompt('Introduce una contraseña maestra para cifrar el backup (no se guardará).');
-      if(!master){ alert('Cancelado. Se requiere una contraseña maestra para cifrar.'); return; }
+  const master = await showMasterModal('Introduce una contraseña maestra para cifrar el backup (no se guardará).');
+  if(!master){ alert('Cancelado. Se requiere una contraseña maestra para cifrar.'); return; }
       statusEl.textContent = 'PGW: cifrando backup...';
       const exported = await encryptBackupObject(payload, master);
       const blob = new Blob([JSON.stringify(exported, null, 2)], {type:'application/json'});
@@ -883,8 +931,8 @@ if(importBtn && importFile){
     try{
       const txt = await f.text();
       const parsed = JSON.parse(txt);
-      const master = prompt('Introduce la contraseña maestra usada para cifrar este backup:');
-      if(!master){ alert('Importación cancelada. Se requiere la contraseña maestra.'); return; }
+  const master = await showMasterModal('Introduce la contraseña maestra usada para cifrar este backup:');
+  if(!master){ alert('Importación cancelada. Se requiere la contraseña maestra.'); return; }
       statusEl.textContent = 'PGW: descifrando backup...';
       const obj = await decryptBackupObject(parsed, master);
       // Ask user before loading into UI to avoid unintended overwrites

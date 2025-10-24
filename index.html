@@ -42,7 +42,7 @@
 
       <section class="card output">
         <div class="passwordBox">
-          <input id="password" readonly aria-label="Contraseña generada">
+          <input id="password" aria-label="Contraseña generada o personalizada">
         </div>
 
         <div class="meter">
@@ -66,7 +66,14 @@
               <input id="customRate" type="text" value="1e10" placeholder="1e10">
             </div>
             <div id="crackEstimates">—</div>
-          <div id="funny" class="funny phrase-anim" aria-live="polite"></div>
+            <div id="funny" class="funny phrase-anim" aria-live="polite"></div>
+        
+            <div class="row" style="margin-top:12px;align-items:center;gap:8px">
+              <label><input id="useCustom" type="checkbox"> Evaluar contraseña manual</label>
+              <input id="customPw" type="text" placeholder="Pega o escribe una contraseña para evaluar" style="flex:1">
+              <button id="evalCustom" class="btn">Evaluar</button>
+            </div>
+            <div id="calcSource" class="muted" style="margin-top:8px">Fuente: ajustes</div>
         </div>
       </section>
 

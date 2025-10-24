@@ -20,6 +20,11 @@ const strengthLabel = el('strengthLabel');
 const entropyLabel = el('entropyLabel');
 const crackTimeEl = el('crackTime');
 const funnyEl = el('funny');
+const useCustom = el('useCustom');
+const customPw = el('customPw');
+const evalCustom = el('evalCustom');
+const calcSource = el('calcSource');
+const passwordInput = el('password');
 const rateSelect = el('rateSelect');
 const customRate = el('customRate');
 const crackEstimatesEl = el('crackEstimates');
@@ -74,6 +79,8 @@ const IMPOSSIBLE_PHRASES = [
   '¡Alerta! Protección nivel: fortaleza impenetrable — trae bocadillos para la espera.',
   'Esta es la definición de "prácticamente imposible" — felicidades, maestro/a.'
 ];
+
+const commonPasswords = ['123456','password','12345678','qwerty','abc123','111111','1234567890','1234567','password1','admin','letmein','1234','iloveyou','000000','contraseña','clave','qwertyuiop'];
 
 // Para evitar repeticiones hasta agotar la lista
 let availableFunny = FUNNY_PHRASES.slice();
@@ -149,7 +156,62 @@ function calculateEntropy(password, opts){
   if(opts.numbers) poolSize += 10;
   if(opts.symbols) poolSize += SYMBOLS.length;
   if(poolSize <= 0) poolSize = 26;
-  return Math.log2(Math.pow(poolSize, opts.length));
+  // Entropía = length * log2(poolSize). Evitamos pow para mayor estabilidad.
+  return opts.length * Math.log2(poolSize);
+}
+
+// Analyze actual password content to get a realistic entropy estimate
+function analyzePassword(pw){
+  if(!pw) return {entropy:0, reason:'vacía'};
+  const s = pw + '';
+  const lower = s.toLowerCase();
+
+  // Detect common passwords
+  if(commonPasswords.includes(lower)) return {entropy:10, reason:'contraseña muy común'};
+
+  // If contains spaces, treat as passphrase
+  if(s.includes(' ')){
+    const parts = s.trim().split(/\s+/).filter(Boolean);
+    if(parts.length>0 && wordList && wordList.length>0){
+      // count how many parts are found in wordlist
+      let found = 0;
+      for(const p of parts){ if(wordList.includes(p.toLowerCase())) found++; }
+      const pool = wordList.length;
+      const entropy = parts.length * Math.log2(pool);
+      return {entropy, reason:`passphrase (${parts.length} palabras, ${found} reconocidas)`};
+    }
+  }
+
+  // char classes present
+  let poolSize = 0;
+  if(/[a-z]/.test(s)) poolSize += 26;
+  if(/[A-Z]/.test(s)) poolSize += 26;
+  if(/[0-9]/.test(s)) poolSize += 10;
+  if(/[^A-Za-z0-9]/.test(s)) poolSize += SYMBOLS.length;
+  if(poolSize === 0) poolSize = 1;
+
+  // Base entropy
+  let entropy = s.length * Math.log2(poolSize);
+
+  // Penalize sequences like '123456' or 'abcdef'
+  if(/^(?:\d){4,}$/.test(s) || /(0123|1234|2345|3456|4567|5678|6789|7890)/.test(s.toLowerCase()) || /(abcd|bcde|cdef|defg|efgh)/.test(lower)){
+    entropy = Math.min(entropy, 20);
+  }
+
+  // Penalize repeats e.g., 'aaaaaa' or 'abcabcabc'
+  if(/^(.+)\1+$/.test(s)){
+    entropy = Math.min(entropy, Math.log2(poolSize) * Math.max(1, Math.floor(s.length/ (s.match(/^(.+)\1+$/)[1].length))));
+  }
+
+  // Penalize if contains dictionary words fully
+  if(wordList && wordList.length>0){
+    const lowerS = lower;
+    for(const w of wordList){ if(w.length>=3 && lowerS.includes(w) ){ entropy = Math.min(entropy, Math.max(8, Math.log2(poolSize) * (s.length - w.length))); break; } }
+  }
+
+  // Floor to 0 minimum
+  if(!isFinite(entropy) || entropy < 0) entropy = 0;
+  return {entropy, reason: 'basado en contenido'};
 }
 
 function evaluateStrength(entropy){
@@ -181,7 +243,7 @@ function estimatesForRates(entropy, rates){
 }
 
 function formatDuration(seconds){
-  if(!isFinite(seconds)) return 'Infinito';
+  if(!isFinite(seconds)) return 'Prácticamente imposible';
   const mins = seconds/60;
   const hours = mins/60;
   const days = hours/24;
@@ -195,7 +257,9 @@ function formatDuration(seconds){
   if(years < 1e6) return `${(years/1000).toFixed(2)} mil años`;
   if(years < 1e9) return `${(years/1e6).toFixed(2)} millones de años`;
   if(years < 1e12) return `${(years/1e9).toFixed(2)} mil millones de años`;
-  return 'Prácticamente imposible';
+  // Para valores gigantes, devolver notación científica con unidades de años
+  const exp = years.toExponential(2);
+  return `${exp} años`;
 }
 
 function minutesLessThan(v, limit){ return v < limit ? v : limit }
@@ -230,11 +294,22 @@ function render(){
     numbers: numbers.checked,
     symbols: symbols.checked
   };
-
-  const pw = generatePassword();
-  passwordOut.value = pw;
-
-  const entropy = calculateEntropy(pw, opts);
+  // Decide source: custom content or generated/options
+  let source = 'ajustes';
+  let pw = generatePassword();
+  passwordInput.value = pw;
+  let entropy;
+  let reason = 'basado en ajustes';
+  if(useCustom.checked && customPw.value.trim().length>0){
+    pw = customPw.value.trim();
+    passwordInput.value = pw;
+    const analysis = analyzePassword(pw);
+    entropy = analysis.entropy;
+    reason = analysis.reason;
+    source = 'contenido';
+  } else {
+    entropy = calculateEntropy(pw, opts);
+  }
   const entRounded = Math.round(entropy);
   entropyLabel.textContent = `Entropía: ${entRounded} bits`;
 
@@ -242,45 +317,36 @@ function render(){
   strengthLabel.textContent = `Fuerza: ${strength.label}`;
   meterBar.style.width = `${strength.colorPct}%`;
 
-  // Mostrar estimaciones para presets y custom
-  const presets = [1e3,1e6,1e10,1e12];
-  const custom = Number(customRate.value) || Number(rateSelect.value) || 1e10;
-  const ratesToShow = presets;
-  const estimates = estimatesForRates(entropy, ratesToShow);
-  // Render estimates
+  // Mostrar solo la estimación para la tasa seleccionada/personalizada
+  let custom = Number(customRate.value);
+  if(!isFinite(custom)) custom = Number(rateSelect.value) || 1e10;
+  const chosen = estimateCrackTime(entropy, custom);
+  // Render single estimate in a clear format
   crackEstimatesEl.innerHTML = '';
   const container = document.createElement('div');
   container.className = 'crack-estimate';
-  estimates.forEach(e=>{
-    const span = document.createElement('span');
-    const label = (e.rate === custom) ? `${formatRate(e.rate)} (seleccionado)` : formatRate(e.rate);
-    span.textContent = `${label}: ${e.label}`;
-    container.appendChild(span);
-  });
-  // Also show custom if it's not one of presets
-  if(!presets.includes(custom)){
-    const customEst = estimateCrackTime(entropy, custom);
-    const span = document.createElement('span');
-    span.textContent = `${formatRate(custom)} (personalizado): ${customEst.label}`;
-    container.appendChild(span);
-  }
+  const span = document.createElement('span');
+  span.textContent = `${formatRate(custom)}: ${chosen.label}`;
+  container.appendChild(span);
   crackEstimatesEl.appendChild(container);
-
-  // Choose a phrase based on the most conservative estimate (custom)
-  const chosen = estimateCrackTime(entropy, custom);
-  const phrase = funnyFor(chosen.seconds);
+  // Seleccionar frase según entropía y mostrarla
+  const phrase = funnyFor(chosen.seconds, entropy);
   showFunnyPhrase(phrase);
 
-  // Si la contraseña es extremadamente fuerte, lanzamos confetti
+  // Mostrar fuente del cálculo
+  calcSource.textContent = `Fuente: ${source} (${reason})`;
+
+  // Confetti sólo para entropía extremadamente alta
   if(entropy >= 128){ launchConfetti(); }
 }
 
 function formatRate(r){
-  if(r>=1e12) return `${r.toExponential()} ops/s`;
-  if(r>=1e9) return `${(r/1e9).toFixed(1)}e9 ops/s`;
-  if(r>=1e6) return `${(r/1e6).toFixed(1)}e6 ops/s`;
-  if(r>=1e3) return `${(r/1e3).toFixed(1)}e3 ops/s`;
-  return `${r} ops/s`;
+  r = Number(r) || 0;
+  if(r >= 1e12) return `${(r/1e12).toFixed(2)}T ops/s`;
+  if(r >= 1e9) return `${(r/1e9).toFixed(2)}G ops/s`;
+  if(r >= 1e6) return `${(r/1e6).toFixed(2)}M ops/s`;
+  if(r >= 1e3) return `${(r/1e3).toFixed(2)}k ops/s`;
+  return `${r.toLocaleString()} ops/s`;
 }
 
 function showFunnyPhrase(text){
@@ -364,3 +430,23 @@ if(customRate) customRate.addEventListener('input', ()=>{ render(); });
 
 // Inicializar
 updateUI(); render();
+
+// Wire up custom evaluation controls
+if(evalCustom){
+  evalCustom.addEventListener('click', ()=>{
+    useCustom.checked = true;
+    // copy customPw into password input for clarity
+    if(customPw.value && customPw.value.trim().length>0) passwordInput.value = customPw.value.trim();
+    passwordInput.readOnly = false;
+    render();
+  });
+}
+if(useCustom){
+  useCustom.addEventListener('change', ()=>{
+    // when unchecked, make password input readonly and regenerate from settings
+    passwordInput.readOnly = !useCustom.checked;
+    if(!useCustom.checked){ render(); }
+  });
+  // start with password input readonly
+  passwordInput.readOnly = true;
+}

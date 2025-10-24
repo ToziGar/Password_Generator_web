@@ -8,7 +8,17 @@
     <link rel="stylesheet" href="styles.css">
   </head>
   <body>
-    <main class="container">
+    <a class="skip-link" href="#mainContent">Saltar al contenido</a>
+    <!-- Privacy banner: informs user that passwords are processed locally only -->
+    <div id="privacyBanner" class="privacy-banner" role="region" aria-live="polite" style="display:none">
+      <div style="flex:1">
+        Esta página procesa contraseñas localmente en tu navegador y no las envía a servidores por defecto. Puedes desactivar este aviso.
+      </div>
+      <div style="margin-left:12px">
+        <button id="privacyDismiss" class="btn">Entendido</button>
+      </div>
+    </div>
+  <main id="mainContent" class="container">
       <header class="hero">
         <h1>Generador de Contraseñas</h1>
         <p class="subtitle">Crea contraseñas a tu gusto, comprueba su fuerza y descubre cuánto tardaría en romperse (con frases divertidas cuando ya es prácticamente imposible).</p>
@@ -35,6 +45,7 @@
 
         <div class="row actions">
           <button id="generate" class="btn primary">Generar</button>
+          <button id="tutorialBtn" class="btn">Tutorial</button>
           <button id="regenerate" class="btn">Regenerar</button>
           <button id="copy" class="btn">Copiar</button>
           <button id="exportBtn" class="btn">Exportar (.json cifrado)</button>
@@ -85,15 +96,45 @@
             <div id="crackEstimates">—</div>
             <div id="funny" class="funny phrase-anim" aria-live="polite"></div>
         
-            <div class="row" style="margin-top:12px;align-items:center;gap:8px">
-              <label><input id="useCustom" type="checkbox"> Evaluar contraseña manual</label>
-              <input id="customPw" type="text" placeholder="Pega o escribe una contraseña para evaluar" style="flex:1">
-              <button id="evalCustom" class="btn">Evaluar</button>
-            </div>
-            <div class="row" style="margin-top:8px;gap:8px;align-items:center">
-              <label><input id="hibpOptIn" type="checkbox"> Comprobar brechas (HaveIBeenPwned) — opt-in</label>
-              <button id="hibpCheck" class="btn">Comprobar ahora</button>
-              <label style="margin-left:8px;color:var(--muted)">Modo hardcore: <input id="hardcore" type="checkbox"></label>
+            <div class="row small-controls small-controls--group">
+              <div class="controls-left">
+                <label class="inline-checkbox">
+                  <input id="useCustom" type="checkbox"> Evaluar contraseña manual
+                  <button type="button" class="info-btn" aria-describedby="desc-useCustom" data-tooltip="Activa para pegar y evaluar una contraseña manualmente">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z" fill="rgba(255,255,255,0.06)"/>
+                      <path d="M11 10h2v6h-2v-6zm0-4h2v2h-2V6z" fill="white"/>
+                    </svg>
+                  </button>
+                </label>
+                <label class="inline-checkbox">
+                  <input id="hibpOptIn" type="checkbox"> Comprobar brechas (HIBP) — opt-in
+                  <button type="button" class="info-btn" aria-describedby="desc-hibpOptIn" data-tooltip="Habilita comprobar si la contraseña apareció en brechas conocidas (se envía solo el prefijo SHA-1).">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z" fill="rgba(255,255,255,0.06)"/>
+                      <path d="M11 10h2v6h-2v-6zm0-4h2v2h-2V6z" fill="white"/>
+                    </svg>
+                  </button>
+                </label>
+                <label class="inline-checkbox">
+                  <input id="hardcore" type="checkbox"> Modo hardcore
+                  <button type="button" class="info-btn" aria-describedby="desc-hardcore" data-tooltip="Desglosa la contraseña por tokens y aplica reglas más estrictas de análisis.">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z" fill="rgba(255,255,255,0.06)"/>
+                      <path d="M11 10h2v6h-2v-6zm0-4h2v2h-2V6z" fill="white"/>
+                    </svg>
+                  </button>
+                </label>
+              </div>
+              <div class="controls-right">
+                <input id="customPw" class="flex-input" type="text" placeholder="Pega o escribe una contraseña para evaluar">
+                <button id="clearCustom" class="btn">Limpiar</button>
+                <button id="evalCustom" class="btn">Evaluar</button>
+                <button id="hibpCheck" class="btn">Comprobar ahora</button>
+              </div>
+              <div id="desc-useCustom" class="visually-hidden">Activa para pegar y evaluar una contraseña manualmente.</div>
+              <div id="desc-hibpOptIn" class="visually-hidden">Habilita comprobar si la contraseña apareció en brechas conocidas. Solo se envía el prefijo SHA-1 según el protocolo k-anonymity.</div>
+              <div id="desc-hardcore" class="visually-hidden">Desglosa la contraseña por tokens y aplica reglas más estrictas de análisis para desarrolladores y auditorías.</div>
             </div>
             <!-- Hidden file input for importing encrypted backups -->
             <input id="importFile" type="file" accept=".json" style="display:none">
@@ -105,6 +146,7 @@
 
       <footer class="footer">
         <small>Generado con amor 🔒 · Abre <strong>index.html</strong> en tu navegador para usarlo localmente.</small>
+        <div style="margin-top:6px;color:var(--muted);font-size:0.9rem">Atajo: <strong>Shift+T</strong> — abrir tutorial</div>
       </footer>
     </main>
 
@@ -127,6 +169,22 @@
             <button id="masterConfirm" class="btn primary">Confirmar</button>
           </div>
         </div>
+          <!-- Tutorial modal (interactive guided mode) -->
+          <div id="tutorialModal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="tutorialTitle" style="display:none">
+            <div class="modal-dialog tutorial-dialog">
+              <div id="tutorialTitle" class="modal-header">Tutorial rápido</div>
+              <div class="modal-body tutorial-content">
+                <div id="tutorialStepTitle" style="font-weight:700;margin-bottom:8px">Paso 1</div>
+                <div id="tutorialStepBody">Bienvenido — este tutorial te guiará para crear una passphrase segura.</div>
+                <div id="tutorialEntropy" style="margin-top:10px;color:var(--muted);font-size:0.95rem">Entropía actual: —</div>
+              </div>
+              <div class="modal-actions">
+                <button id="tutorialPrev" class="btn">Anterior</button>
+                <button id="tutorialNext" class="btn primary">Siguiente</button>
+                <button id="tutorialClose" class="btn">Cerrar</button>
+              </div>
+            </div>
+          </div>
       </div>
       <!-- Generic confirm modal to replace window.confirm() (accessible) -->
       <div id="confirmModal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="confirmModalLabel" style="display:none">
@@ -145,6 +203,15 @@
         <div class="overlay-content">
           <div class="spinner" aria-hidden="true"></div>
           <div id="overlayMessage" class="muted" style="margin-top:8px;color:var(--text)">Procesando...</div>
+          <div class="overlay-progress" style="width:240px;margin-top:12px;">
+            <div style="background:rgba(255,255,255,0.06);height:10px;border-radius:8px;overflow:hidden;">
+              <div id="overlayProgressBar" style="width:0%;height:10px;background:linear-gradient(90deg,var(--accent),var(--accent-2));"></div>
+            </div>
+            <div id="overlayProgressPct" style="text-align:center;margin-top:6px;color:var(--muted)">0%</div>
+          </div>
+          <div style="margin-top:8px">
+            <button id="overlayCancel" class="btn" aria-label="Cancelar operación">Cancelar</button>
+          </div>
         </div>
       </div>
     </body>

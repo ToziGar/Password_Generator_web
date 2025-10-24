@@ -56,13 +56,75 @@ self.addEventListener('message', async (ev) => {
     }
 
     if(action === 'pbkdf2'){
-      // data: {password, salt, iterations, length}
+      // data: {password, salt, iterations, length, reportProgress}
+      // If reportProgress is truthy, perform a JS implementation of PBKDF2 with HMAC-SHA256
+      // so we can emit progress messages. Otherwise use SubtleCrypto deriveBits for speed.
       const enc = new TextEncoder();
-      const passKey = await crypto.subtle.importKey('raw', enc.encode(data.password), {name:'PBKDF2'}, false, ['deriveBits']);
-      const params = {name:'PBKDF2', salt: enc.encode(data.salt || ''), iterations: data.iterations || 100000, hash:'SHA-256'};
-      const bits = await crypto.subtle.deriveBits(params, passKey, (data.length||32)*8);
-      const out = new Uint8Array(bits);
-      self.postMessage({id, ok:true, result: out.buffer}, [out.buffer]);
+      const passwordBytes = enc.encode(data.password || '');
+      const saltBytes = enc.encode(data.salt || '');
+      const iterations = Number(data.iterations) || 100000;
+      const dkLen = Number(data.length) || 32; // bytes
+
+      if(!data.reportProgress){
+        try{
+          const passKey = await crypto.subtle.importKey('raw', passwordBytes, {name:'PBKDF2'}, false, ['deriveBits']);
+          const params = {name:'PBKDF2', salt: saltBytes, iterations: iterations, hash:'SHA-256'};
+          const bits = await crypto.subtle.deriveBits(params, passKey, dkLen*8);
+          const out = new Uint8Array(bits);
+          self.postMessage({id, ok:true, result: out.buffer}, [out.buffer]);
+          return;
+        }catch(e){ /* fallback to JS implementation below */ }
+      }
+
+      // JS PBKDF2 implementation with HMAC-SHA256 (progress-capable)
+      // Import HMAC key
+      const hmacKey = await crypto.subtle.importKey('raw', passwordBytes, {name:'HMAC', hash:'SHA-256'}, false, ['sign']);
+      const hLen = 32; // HMAC-SHA256 output size in bytes
+      const l = Math.ceil(dkLen / hLen);
+      const r = dkLen - (l-1)*hLen;
+      const derived = new Uint8Array(dkLen);
+
+      // progress reporting parameters
+      const totalIterations = iterations * l;
+      let completedIterations = 0;
+      const updateEvery = Math.max(1, Math.floor(iterations / 50)); // ~50 updates per block
+
+      for(let i=1;i<=l;i++){
+        // U1 = HMAC(P, S || INT(i))
+        const intBuf = new Uint8Array(4);
+        intBuf[0] = (i >>> 24) & 0xFF;
+        intBuf[1] = (i >>> 16) & 0xFF;
+        intBuf[2] = (i >>> 8) & 0xFF;
+        intBuf[3] = (i) & 0xFF;
+        const msg1 = new Uint8Array(saltBytes.length + 4);
+        msg1.set(saltBytes,0); msg1.set(intBuf, saltBytes.length);
+
+        let u = new Uint8Array(await crypto.subtle.sign('HMAC', hmacKey, msg1));
+        let t = new Uint8Array(u); // initial block
+        completedIterations++;
+        if((completedIterations % updateEvery) === 0){
+          const pct = Math.floor((completedIterations / totalIterations) * 100);
+          self.postMessage({id, progress:true, percent: pct, completed: completedIterations, total: totalIterations});
+        }
+        for(let j=2;j<=iterations;j++){
+          u = new Uint8Array(await crypto.subtle.sign('HMAC', hmacKey, u));
+          // XOR into T
+          for(let k=0;k<u.length;k++) t[k] ^= u[k];
+          completedIterations++;
+          if((completedIterations % updateEvery) === 0){
+            const pct = Math.floor((completedIterations / totalIterations) * 100);
+            self.postMessage({id, progress:true, percent: pct, completed: completedIterations, total: totalIterations});
+          }
+        }
+        // copy t into derived
+        const offset = (i-1)*hLen;
+        const take = (i === l) ? r : hLen;
+        derived.set(t.slice(0,take), offset);
+      }
+
+      // final progress 100%
+      self.postMessage({id, progress:true, percent:100, completed: totalIterations, total: totalIterations});
+      self.postMessage({id, ok:true, result: derived.buffer}, [derived.buffer]);
       return;
     }
 

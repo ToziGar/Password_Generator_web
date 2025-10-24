@@ -19,6 +19,9 @@ if(!statusEl){
   document.body.appendChild(statusEl);
 }
 
+// Lightweight metrics for development/testing (kept in-memory only)
+window.__pgw_metrics = window.__pgw_metrics || { cancels: 0, retries: 0 };
+
 window.addEventListener('error', (ev) => {
   console.error('Unhandled error:', ev.error || ev.message, ev);
   try{ statusEl.textContent = 'PGW ERROR: ' + (ev.message || (ev.error && ev.error.message) || 'see console'); }catch(e){}
@@ -469,21 +472,53 @@ function ensureWorker(){
   try{
     cryptoWorker = new Worker('worker.js');
     cryptoWorker.addEventListener('message', (ev)=>{
-      const { id, ok, result, error } = ev.data || {};
+      const msg = ev.data || {};
+      const { id, ok, result, error, progress } = msg;
       const cb = workerCallbacks.get(id);
-      if(cb){ workerCallbacks.delete(id); if(ok) cb.resolve(result); else cb.reject(new Error(error)); }
+      if(cb){
+        if(progress && typeof cb.progress === 'function'){
+          try{ cb.progress(msg); }catch(e){}
+          return; // don't resolve yet
+        }
+        workerCallbacks.delete(id);
+        if(ok) cb.resolve(result); else cb.reject(new Error(error));
+      }
     });
   }catch(e){ console.warn('No se pudo crear worker:', e); cryptoWorker = null; }
 }
 
-function workerRequest(action, data){
+function workerRequest(action, data, onProgress){
   ensureWorker();
   if(!cryptoWorker){ return Promise.reject(new Error('Web Worker no disponible')); }
   const id = workerReqId++;
   return new Promise((resolve,reject)=>{
-    workerCallbacks.set(id, {resolve,reject});
+    workerCallbacks.set(id, {resolve,reject,progress:onProgress});
     cryptoWorker.postMessage({id, action, data});
   });
+}
+
+// Cancel outstanding worker operations and terminate the worker.
+function cancelWorkerOperations(){
+  try{
+    if(cryptoWorker){
+      // Reject all pending callbacks so awaiting promises don't hang
+      for(const [id, cb] of workerCallbacks.entries()){
+        try{ cb.reject(new Error('Operación cancelada por el usuario')); }catch(e){}
+      }
+      workerCallbacks.clear();
+      try{ cryptoWorker.terminate(); }catch(e){}
+      cryptoWorker = null;
+      // show toast with retry action if a retry function is registered
+      const retryFn = (window && window.__pgw_last_longop_retry) ? window.__pgw_last_longop_retry : null;
+      if(retryFn && typeof retryFn === 'function'){
+        showToast('Operación cancelada', 'warn', 8000, 'Reintentar', ()=>{ try{ retryFn(); }catch(e){ console.error('retry fn failed', e); } });
+      } else {
+        showToast('Operación cancelada', 'warn', 3000);
+      }
+      statusEl.textContent = 'PGW: operación cancelada';
+    }
+  }catch(e){ console.error('Error al cancelar worker:', e); }
+  try{ if(window && window.__pgw_kdf_progress_handler) delete window.__pgw_kdf_progress_handler; }catch(e){}
 }
 
 // Wrapper to get SHA-1 using worker when possible (returns hex)
@@ -740,6 +775,17 @@ function breakdownEntropyDetailed(pw){
     statusEl.textContent = 'PGW: listo';
     // Kick off KDF ETA estimation in background
     try{ if(kdfIterations) estimateKdfEta(Number(kdfIterations.value)); }catch(e){/* ignore */}
+    // Auto-open tutorial for first-time visitors (unless already completed)
+    try{
+      const completed = (localStorage && localStorage.getItem && localStorage.getItem('pgw_tutorial_completed') === '1');
+      const seenSession = (sessionStorage && sessionStorage.getItem && sessionStorage.getItem('pgw_tutorial_shown'));
+      if(!completed && !seenSession){
+        // mark shown this session to avoid repeat modals on reload
+        try{ sessionStorage.setItem('pgw_tutorial_shown','1'); }catch(e){}
+        // small delay so the page finishes layout before opening modal
+        setTimeout(()=>{ try{ openTutorial(); }catch(e){ console.error('auto open tutorial failed', e); } }, 900);
+      }
+    }catch(e){ console.warn('tutorial auto-open check failed', e); }
   }catch(e){
     console.error('Error al inicializar render/updateUI', e);
     statusEl.textContent = 'PGW: init error (ver consola)';
@@ -763,6 +809,35 @@ if(evalCustom){
     setLoading(true,'Analizando...');
     try{ await render(); }catch(e){ console.error('Error en render desde evalCustom', e); }
     finally{ setLoading(false); }
+  });
+}
+// Clear manual input button
+const clearCustom = el('clearCustom');
+if(clearCustom){
+  clearCustom.addEventListener('click', ()=>{
+    try{
+      // store previous value for undo
+      const prev = (customPw && customPw.value) ? customPw.value : '';
+      window.__pgw_last_cleared_custom = prev;
+      // clear field
+      customPw.value = '';
+      useCustom.checked = false;
+      passwordInput.readOnly = true;
+      passwordInput.focus();
+      // show toast with Undo action
+      showToast('Campo manual limpiado', 'info', 6000, 'Deshacer', ()=>{
+        try{
+          if(window.__pgw_last_cleared_custom !== undefined && window.__pgw_last_cleared_custom !== null){
+            customPw.value = window.__pgw_last_cleared_custom;
+            useCustom.checked = true;
+            passwordInput.readOnly = false;
+            customPw.focus();
+            window.__pgw_last_cleared_custom = null;
+            showToast('Restaurado', 'info', 1800);
+          }
+        }catch(e){ console.error('undo clear failed', e); }
+      });
+    }catch(e){ console.error(e); }
   });
 }
 if(useCustom){
@@ -800,7 +875,9 @@ async function deriveAesKey(masterPass, saltBase64, iterations=200000){
   // Use worker PBKDF2 to derive 32 bytes (256 bits)
   try{
     const saltStr = arrayBufferToBase64(salt.buffer); // worker pbkdf2 expects salt as string in our worker (it encodes it again)
-    const outBuf = await workerRequest('pbkdf2', { password: masterPass, salt: saltStr, iterations: iterations, length: 32 });
+    // If caller provided an onProgress callback in a global slot, use it. We'll accept a temporary global handler 'currentKdfProgressHandler'.
+    const onProgress = (typeof window !== 'undefined' && window.__pgw_kdf_progress_handler) ? window.__pgw_kdf_progress_handler : null;
+    const outBuf = await workerRequest('pbkdf2', { password: masterPass, salt: saltStr, iterations: iterations, length: 32, reportProgress: !!onProgress }, onProgress);
     const keyBytes = new Uint8Array(outBuf);
     const key = await crypto.subtle.importKey('raw', keyBytes, { name: 'AES-GCM' }, false, ['encrypt','decrypt']);
     return key;
@@ -811,6 +888,8 @@ async function deriveAesKey(masterPass, saltBase64, iterations=200000){
       const baseKey = await crypto.subtle.importKey('raw', enc.encode(masterPass), {name:'PBKDF2'}, false, ['deriveBits']);
       const derived = await crypto.subtle.deriveBits({name:'PBKDF2', salt, iterations, hash:'SHA-256'}, baseKey, 256);
       const key = await crypto.subtle.importKey('raw', derived, {name:'AES-GCM'}, false, ['encrypt','decrypt']);
+      // If an onProgress handler exists, call it to indicate completion (can't provide incremental progress here)
+      try{ if(window && window.__pgw_kdf_progress_handler){ window.__pgw_kdf_progress_handler({id:null, progress:true, percent:100, completed:iterations, total:iterations}); } }catch(e){}
       return key;
     }catch(err){ throw new Error('No se pudo derivar la clave: '+err.message); }
   }
@@ -871,7 +950,7 @@ function showMasterModal(promptText, placeholder, opts = {}){
     const {modal, header, body, input, confirmBtn, cancelBtn} = elems;
     const confirmWrap = el('masterConfirmWrap');
     const confirmInput = el('masterInputConfirm');
-    const main = document.querySelector('main.container');
+  const main = document.querySelector('#mainContent') || document.querySelector('main.container');
     try{ if(header) header.textContent = 'Contraseña maestra'; }catch(e){}
     try{ if(body) body.textContent = promptText || 'Introduce la contraseña maestra.'; }catch(e){}
     input.value = '';
@@ -950,7 +1029,7 @@ function showConfirmModal(message, title = 'Confirmación'){
     const body = el('confirmModalBody');
     const okBtn = el('confirmOk');
     const cancelBtn = el('confirmCancel');
-    const main = document.querySelector('main.container');
+  const main = document.querySelector('#mainContent') || document.querySelector('main.container');
     if(label) label.textContent = title;
     if(body) body.textContent = message;
     // remember opener to restore focus later
@@ -1000,6 +1079,152 @@ function showConfirmModal(message, title = 'Confirmación'){
 const exportBtn = el('exportBtn');
 const importBtn = el('importBtn');
 const importFile = el('importFile');
+const tutorialBtn = el('tutorialBtn');
+
+// Tutorial state helpers
+let _tutorialSnapshot = null;
+const tutorialSteps = [
+  { title: 'Longitud: seguridad vs memoria', body: 'Aumentar longitud incrementa exponencialmente la entropía. Vamos a probar 24 caracteres.', apply: ()=>{ try{ lengthEl.value = 24; updateUI(); }catch(e){} }, highlight: '#length' },
+  { title: 'Frase (passphrase)', body: 'Las frases (palabras aleatorias) suelen ser fáciles de recordar y seguras. Activamos passphrase y usamos 5 palabras.', apply: ()=>{ try{ passphrase.checked = true; words.value = 5; updateUI(); }catch(e){} }, highlight: '#passphrase' },
+  { title: 'Generación determinista', body: 'Puedes usar una semilla para reproducir la passphrase. Activamos modo determinista y sugerimos una semilla.', apply: ()=>{ try{ const d = el('deterministic'); if(d) d.checked = true; const s = el('seedInput'); if(s) s.value = 'mi-semilla-de-ejemplo'; updateUI(); }catch(e){} }, highlight: '#deterministic' },
+  { title: 'Exportar backup', body: 'Puedes exportar la passphrase cifrada con una contraseña maestra (PBKDF2 + AES-GCM). Prueba el flujo de exportar.', apply: ()=>{}, highlight: '#exportBtn' }
+];
+let _tutorialIndex = 0;
+
+async function openTutorial(){
+  // snapshot current values to restore later
+  _tutorialSnapshot = {
+    length: lengthEl.value, lower: lower.checked, upper: upper.checked, numbers: numbers.checked, symbols: symbols.checked,
+    passphrase: passphrase.checked, words: words.value, deterministic: (el('deterministic')?el('deterministic').checked:false), seed: (el('seedInput')?el('seedInput').value:'')
+  };
+  _tutorialIndex = 0;
+  const modal = el('tutorialModal');
+  if(!modal) return;
+  modal.style.display = 'flex';
+  try{ document.querySelector('main.container').setAttribute('aria-hidden','true'); }catch(e){}
+  // focus-trap for tutorial modal
+  try{
+    const focusableSelector = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+    const focusable = Array.from(modal.querySelectorAll(focusableSelector)).filter(elm => !elm.hasAttribute('disabled'));
+    const firstFocusable = focusable[0];
+    const lastFocusable = focusable[focusable.length-1];
+    const onKey = (e)=>{ if(e.key === 'Escape'){ closeTutorial(true); } else if(e.key === 'Tab'){
+      const idx = focusable.indexOf(document.activeElement);
+      if(e.shiftKey){ if(document.activeElement === firstFocusable || idx === -1){ e.preventDefault(); lastFocusable.focus(); } }
+      else { if(document.activeElement === lastFocusable || idx === -1){ e.preventDefault(); firstFocusable.focus(); } }
+    } };
+    document.addEventListener('keydown', onKey);
+    // store cleanup handler on modal so closeTutorial can remove it
+    modal._cleanup = ()=>{ document.removeEventListener('keydown', onKey); };
+    // focus first actionable element after open
+    setTimeout(()=>{ try{ (firstFocusable || el('tutorialNext')).focus(); }catch(e){} }, 40);
+  }catch(e){/* ignore focus trap errors */}
+
+  await renderTutorialStep();
+}
+
+function closeTutorial(restore=true){
+  const modal = el('tutorialModal');
+  if(modal){ modal.style.display = 'none'; if(modal._cleanup) try{ modal._cleanup(); delete modal._cleanup; }catch(e){} }
+  try{ document.querySelector('main.container').removeAttribute('aria-hidden'); }catch(e){}
+  if(restore && _tutorialSnapshot){
+    try{
+      lengthEl.value = _tutorialSnapshot.length; lower.checked = _tutorialSnapshot.lower; upper.checked = _tutorialSnapshot.upper; numbers.checked = _tutorialSnapshot.numbers; symbols.checked = _tutorialSnapshot.symbols;
+      passphrase.checked = _tutorialSnapshot.passphrase; words.value = _tutorialSnapshot.words; if(el('deterministic')) el('deterministic').checked = _tutorialSnapshot.deterministic; if(el('seedInput')) el('seedInput').value = _tutorialSnapshot.seed;
+      updateUI();
+      render();
+    }catch(e){ console.error('restore snapshot failed', e); }
+  }
+  _tutorialSnapshot = null;
+}
+
+// Render tutorial step, apply its settings, run the generator and update a live entropy panel.
+async function renderTutorialStep(){
+  const s = tutorialSteps[_tutorialIndex];
+  const title = el('tutorialStepTitle');
+  const body = el('tutorialStepBody');
+  if(title) title.textContent = s.title || ('Paso ' + (_tutorialIndex+1));
+  if(body) body.textContent = s.body || '';
+  // remove any previous highlights
+  try{ Array.from(document.querySelectorAll('.tutorial-highlight')).forEach(n=>n.classList.remove('tutorial-highlight')); }catch(e){}
+  // apply suggested settings for this step
+  try{ if(typeof s.apply === 'function') s.apply(); }catch(e){ console.error('apply tutorial step failed', e); }
+
+  // Add highlight(s) for this step if provided
+  try{
+    if(s.highlight){
+      const sels = Array.isArray(s.highlight) ? s.highlight : [s.highlight];
+      for(const sel of sels){ try{ const node = document.querySelector(sel); if(node) node.classList.add('tutorial-highlight'); }catch(e){} }
+    }
+  }catch(e){ console.error('highlight apply failed', e); }
+
+  // brief pulse on highlighted elements to draw attention
+  try{
+    if(s.highlight){
+      const sels = Array.isArray(s.highlight) ? s.highlight : [s.highlight];
+      for(const sel of sels){
+        try{
+          const node = document.querySelector(sel);
+          if(node){
+            node.classList.add('pulse');
+            setTimeout(()=>{ try{ node.classList.remove('pulse'); }catch(e){} }, 900);
+          }
+        }catch(e){}
+      }
+    }
+  }catch(e){ /* ignore pulse errors */ }
+
+  // Update UI by generating or analyzing current values so the user sees live entropy and estimate
+  try{
+    await render();
+    // compute analysis for the currently displayed password
+    const curPw = (passwordInput && passwordInput.value) ? passwordInput.value : '';
+    const analysis = analyzePassword(curPw);
+    const entropy = analysis.entropy || 0;
+    const custom = Number(customRate && customRate.value) || Number(rateSelect && rateSelect.value) || 1e10;
+    const chosen = estimateCrackTime(entropy, custom);
+    const entRounded = Math.round(entropy);
+    const entropyEl = el('tutorialEntropy');
+    if(entropyEl){
+      const phrase = funnyFor(chosen.seconds, entropy);
+      entropyEl.textContent = `Entropía: ${entRounded} bits — ${formatRate(custom)}: ${chosen.label} — ${phrase}`;
+    }
+  }catch(e){ console.error('renderTutorialStep render/analysis failed', e); }
+
+  // update buttons
+  try{ el('tutorialPrev').disabled = (_tutorialIndex === 0); el('tutorialNext').textContent = (_tutorialIndex === tutorialSteps.length-1) ? 'Finalizar' : 'Siguiente'; }catch(e){}
+}
+
+async function nextTutorialStep(){
+  if(_tutorialIndex < tutorialSteps.length-1){ _tutorialIndex++; await renderTutorialStep(); } else { try{ localStorage.setItem('pgw_tutorial_completed', '1'); }catch(e){} closeTutorial(false); showToast('Tutorial finalizado — los cambios se conservaron.', 'info', 3000); }
+}
+
+async function prevTutorialStep(){ if(_tutorialIndex>0){ _tutorialIndex--; await renderTutorialStep(); } }
+
+// wire tutorial UI
+document.addEventListener('DOMContentLoaded', ()=>{
+  try{
+    const tBtn = document.getElementById('tutorialBtn'); if(tBtn) tBtn.addEventListener('click', ()=>openTutorial());
+    const tClose = document.getElementById('tutorialClose'); if(tClose) tClose.addEventListener('click', ()=>closeTutorial());
+    const tNext = document.getElementById('tutorialNext'); if(tNext) tNext.addEventListener('click', ()=>nextTutorialStep());
+    const tPrev = document.getElementById('tutorialPrev'); if(tPrev) tPrev.addEventListener('click', ()=>prevTutorialStep());
+  }catch(e){ console.error('wire tutorial failed', e); }
+});
+
+// Keyboard shortcut: Shift+T opens the tutorial (unless typing in an input)
+document.addEventListener('keydown', (e)=>{
+  try{
+    if(!e.shiftKey) return;
+    const k = e.key || e.keyCode;
+    if(k === 'T' || k === 't' || k === 84){
+      const active = document.activeElement;
+      const tag = active && active.tagName;
+      if(tag === 'INPUT' || tag === 'TEXTAREA' || (active && active.isContentEditable)) return; // avoid interfering while typing
+      e.preventDefault();
+      try{ openTutorial(); showToast('Atajo: abrir tutorial (Shift+T)', 'info', 2200); }catch(err){ console.error('shortcut open tutorial failed', err); }
+    }
+  }catch(e){ /* ignore */ }
+});
 
 if(exportBtn){
   exportBtn.addEventListener('click', async ()=>{
@@ -1029,13 +1254,25 @@ if(exportBtn){
   // If KDF is expected to be long, show blocking overlay
   try{
     const seconds = await estimateKdfEta(iters);
-    if(seconds && seconds > 5){ showBlockingOverlay(`Cifrando backup — esto puede tardar ${formatDuration(seconds)}`); }
+    if(seconds && seconds > 5){
+      // register a temporary global progress handler that receives worker progress messages
+      window.__pgw_kdf_progress_handler = (msg)=>{
+        try{
+          const percent = Number(msg.percent) || 0;
+          setBlockingProgress(percent);
+        }catch(e){}
+      };
+      // register a retry shortcut so toast can trigger export again if user cancels
+    try{ window.__pgw_last_longop_retry = ()=>{ try{ window.__pgw_metrics.retries = (window.__pgw_metrics.retries||0) + 1; console.log('PGW metrics (retries):', window.__pgw_metrics.retries); }catch(e){} exportBtn.click(); }; }catch(e){}
+      showBlockingOverlay(`Cifrando backup — esto puede tardar ${formatDuration(seconds)}`);
+    }
   }catch(e){ /* ignore ETA errors */ }
   let exported;
   try{
     exported = await encryptBackupObject(payload, master, iters);
   }finally{
     hideBlockingOverlay();
+    try{ delete window.__pgw_kdf_progress_handler; }catch(e){}
   }
       const blob = new Blob([JSON.stringify(exported, null, 2)], {type:'application/json'});
       const name = `pgw-backup-${(new Date()).toISOString().slice(0,19).replace(/[:T]/g,'-')}.json`;
@@ -1060,13 +1297,22 @@ if(importBtn && importFile){
       // If the backup declares iterations, estimate decrypt time and show overlay if long
       try{
         const iters = parsed && parsed.iterations ? Number(parsed.iterations) : null;
-        if(iters){ const seconds = await estimateKdfEta(iters); if(seconds && seconds > 5) showBlockingOverlay(`Descifrando backup — esto puede tardar ${formatDuration(seconds)}`); }
+        if(iters){
+          const seconds = await estimateKdfEta(iters);
+          if(seconds && seconds > 5){
+            window.__pgw_kdf_progress_handler = (msg)=>{ try{ setBlockingProgress(Number(msg.percent)||0); }catch(e){} };
+            // register retry shortcut so toast can re-open import file picker
+            try{ window.__pgw_last_longop_retry = ()=>{ try{ window.__pgw_metrics.retries = (window.__pgw_metrics.retries||0) + 1; console.log('PGW metrics (retries):', window.__pgw_metrics.retries); }catch(e){} importBtn.click(); }; }catch(e){}
+            showBlockingOverlay(`Descifrando backup — esto puede tardar ${formatDuration(seconds)}`);
+          }
+        }
       }catch(e){ /* ignore ETA errors */ }
       let obj;
       try{
         obj = await decryptBackupObject(parsed, master);
       }finally{
         hideBlockingOverlay();
+        try{ delete window.__pgw_kdf_progress_handler; }catch(e){}
       }
   // Ask user before loading into UI to avoid unintended overwrites (accessible confirm)
   const want = await showConfirmModal('Backup descifrado correctamente. Contiene contraseña y opciones. ¿Desea cargar la contraseña en la interfaz ahora? (Se sobrescribirá el campo actual)');
@@ -1143,14 +1389,163 @@ function showToast(msg, type='info', timeout=5000){
     container = document.createElement('div'); container.id = 'toastContainer'; container.className = 'toast-container'; document.body.appendChild(container);
   }
   const t = document.createElement('div'); t.className = 'toast ' + (type||'info');
-  t.textContent = msg;
   t.setAttribute('role','status');
   t.style.opacity = '0';
+  // message
+  const txt = document.createElement('div'); txt.textContent = msg; txt.style.flex = '1';
+  t.appendChild(txt);
+  // support optional action via extra args (passed via arguments beyond timeout)
+  const actionLabel = arguments[3];
+  const actionCb = arguments[4];
+  if(actionLabel && typeof actionLabel === 'string' && typeof actionCb === 'function'){
+    const actBtn = document.createElement('button'); actBtn.className = 'btn'; actBtn.textContent = actionLabel; actBtn.style.marginLeft = '10px'; actBtn.addEventListener('click', ()=>{ try{ actionCb(); }catch(e){} t.remove(); });
+    t.appendChild(actBtn);
+  }
   container.appendChild(t);
   // fade in
   requestAnimationFrame(()=>{ t.style.transition = 'opacity 240ms ease'; t.style.opacity = '1'; });
   setTimeout(()=>{ try{ t.style.opacity = '0'; setTimeout(()=>t.remove(),300); }catch(e){} }, timeout);
 }
+
+// Tooltip/Popover for .info-btn (supports touch and keyboard)
+function createTooltipPopover(){
+  let pop = document.getElementById('pgw-tooltip-popover');
+  if(pop) return pop;
+  pop = document.createElement('div'); pop.id = 'pgw-tooltip-popover'; pop.className = 'tooltip-popover'; pop.setAttribute('role','tooltip'); pop.setAttribute('hidden','');
+  const arrow = document.createElement('div'); arrow.className = 'arrow'; pop.appendChild(arrow);
+  const content = document.createElement('div'); content.id = 'pgw-tooltip-content'; pop.appendChild(content);
+  document.body.appendChild(pop);
+  return pop;
+}
+
+function showTooltipForBtn(btn){
+  const pop = createTooltipPopover();
+  const txt = btn.getAttribute('data-tooltip') || btn.getAttribute('aria-label') || '';
+  const content = document.getElementById('pgw-tooltip-content');
+  content.textContent = txt;
+  // position near button with flipping and responsive reposition on scroll/resize
+  const rect = btn.getBoundingClientRect();
+  pop.style.left = '0px'; pop.style.top = '0px'; pop.removeAttribute('hidden');
+  pop.tabIndex = -1;
+  const margin = 8;
+
+  const reposition = ()=>{
+    const popRect = pop.getBoundingClientRect();
+    let top, left;
+    // Prefer placing above unless there's not enough space
+    if(rect.top - popRect.height - margin > 8){
+      // place above
+      top = rect.top - popRect.height - margin;
+      pop.classList.remove('below'); pop.classList.add('above');
+    } else {
+      // place below
+      top = rect.bottom + margin;
+      pop.classList.remove('above'); pop.classList.add('below');
+    }
+    left = rect.left + (rect.width/2) - (popRect.width/2);
+    if(left < 8) left = 8;
+    if(left + popRect.width > window.innerWidth - 8) left = window.innerWidth - popRect.width - 8;
+    pop.style.left = Math.round(left) + 'px';
+    pop.style.top = Math.round(top) + 'px';
+  };
+
+  // initial placement
+  reposition();
+
+  // set aria-describedby for the button so screen readers associate tooltip
+  try{ btn.setAttribute('aria-describedby','pgw-tooltip-popover'); }catch(e){}
+
+  // expose expanded state for assistive tech
+  try{ btn.setAttribute('aria-expanded','true'); }catch(e){}
+
+  // attach dismissal & reposition handlers
+  const onDoc = (e)=>{ if(!pop.contains(e.target) && e.target !== btn) hideTooltip(); };
+  const onEsc = (e)=>{ if(e.key === 'Escape') hideTooltip(); };
+  const onScrollResize = ()=>{ try{ reposition(); }catch(e){} };
+  setTimeout(()=>{
+    document.addEventListener('click', onDoc, {capture:true});
+    document.addEventListener('touchstart', onDoc, {capture:true});
+    document.addEventListener('keydown', onEsc);
+    window.addEventListener('resize', onScrollResize);
+    window.addEventListener('scroll', onScrollResize, true);
+    pop._cleanup = ()=>{
+      document.removeEventListener('click', onDoc, {capture:true});
+      document.removeEventListener('touchstart', onDoc, {capture:true});
+      document.removeEventListener('keydown', onEsc);
+      window.removeEventListener('resize', onScrollResize);
+      window.removeEventListener('scroll', onScrollResize, true);
+      try{ btn.removeAttribute('aria-describedby'); }catch(e){}
+      try{ btn.removeAttribute('aria-expanded'); }catch(e){}
+    };
+  },0);
+}
+
+function hideTooltip(){ const pop = document.getElementById('pgw-tooltip-popover'); if(!pop) return; pop.setAttribute('hidden',''); if(pop._cleanup) try{ pop._cleanup(); }catch(e){} }
+
+// Initialize info button behavior: on touch/click show JS popover, on mouse hover fallback to CSS tooltip
+function initInfoButtons(){
+  const buttons = Array.from(document.querySelectorAll('.info-btn'));
+  if(buttons.length === 0) return;
+  buttons.forEach(btn=>{
+    // on click/tap show popover (good for touch)
+    btn.addEventListener('click', (e)=>{
+      e.stopPropagation(); e.preventDefault();
+      const pop = document.getElementById('pgw-tooltip-popover');
+      if(pop && !pop.hasAttribute('hidden') && pop._currentBtn === btn){ hideTooltip(); pop._currentBtn = null; return; }
+      hideTooltip(); showTooltipForBtn(btn); const popEl = document.getElementById('pgw-tooltip-popover'); if(popEl) popEl._currentBtn = btn;
+    });
+    // keyboard focus shows popover
+    btn.addEventListener('focus', ()=>{ showTooltipForBtn(btn); const popEl = document.getElementById('pgw-tooltip-popover'); if(popEl) popEl._currentBtn = btn; });
+    btn.addEventListener('blur', ()=>{ hideTooltip(); });
+  });
+}
+
+// Auto-init info buttons on DOMContentLoaded
+document.addEventListener('DOMContentLoaded', ()=>{ try{ initInfoButtons(); }catch(e){console.error('initInfoButtons', e);} });
+
+// Privacy banner: show unless dismissed
+document.addEventListener('DOMContentLoaded', ()=>{
+  try{
+    const banner = el('privacyBanner');
+    const dismiss = el('privacyDismiss');
+    if(!banner) return;
+    const dismissed = (localStorage && localStorage.getItem && localStorage.getItem('pgw_privacy_dismissed') === '1');
+    if(!dismissed){ banner.style.display = 'flex'; }
+    if(dismiss){ dismiss.addEventListener('click', ()=>{
+      try{ localStorage.setItem('pgw_privacy_dismissed','1'); }catch(e){}
+      try{ banner.style.display = 'none'; }catch(e){}
+      showToast('Aviso de privacidad descartado', 'info', 2500);
+    }); }
+  }catch(e){ console.error('privacy banner init failed', e); }
+});
+
+// Wire overlay cancel button to abort long-running worker operations
+document.addEventListener('DOMContentLoaded', ()=>{
+  try{
+    const ovCancel = el('overlayCancel');
+    if(ovCancel){
+      ovCancel.addEventListener('click', async ()=>{
+        try{
+          // Ask for confirmation using accessible confirm modal
+          const ok = await showConfirmModal('¿Cancelar la operación en curso? Esto abortará la operación criptográfica actual.');
+          if(ok){
+            // Indicate aborting state immediately in the UI
+            try{ ovCancel.disabled = true; ovCancel.textContent = 'Abortando...'; ovCancel.classList.add('loading'); }catch(e){}
+            // metrics
+            try{ window.__pgw_metrics.cancels = (window.__pgw_metrics.cancels||0) + 1; console.log('PGW metrics (cancels):', window.__pgw_metrics.cancels); }catch(e){}
+            cancelWorkerOperations();
+            hideBlockingOverlay();
+            setBlockingProgress(0);
+            try{ ovCancel.classList.remove('loading'); ovCancel.disabled = false; ovCancel.textContent = 'Cancelar'; }catch(e){}
+          } else {
+            // user changed mind — leave overlay visible
+            showToast('Continuando operación...', 'info', 1600);
+          }
+        }catch(e){ console.error('cancel overlay', e); }
+      });
+    }
+  }catch(e){ console.error('error wiring overlayCancel', e); }
+});
 
 // Blocking overlay controls for long operations
 function showBlockingOverlay(message){
@@ -1158,10 +1553,21 @@ function showBlockingOverlay(message){
   const msg = el('overlayMessage');
   if(!ov) return;
   if(msg) msg.textContent = message || 'Procesando...';
+  // reset progress
+  setBlockingProgress(0);
   ov.style.display = 'flex';
 }
 function hideBlockingOverlay(){
   const ov = el('blockingOverlay');
   if(!ov) return;
   ov.style.display = 'none';
+}
+
+function setBlockingProgress(pct){
+  try{
+    const bar = el('overlayProgressBar');
+    const pctLbl = el('overlayProgressPct');
+    if(bar) bar.style.width = Math.max(0,Math.min(100,pct)) + '%';
+    if(pctLbl) pctLbl.textContent = (Math.round(pct) + '%');
+  }catch(e){}
 }

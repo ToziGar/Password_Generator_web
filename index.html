@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Generador de Contraseñas — Seguro y Divertido</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <!-- Optional animation and icon libraries (CDN) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
     <link rel="stylesheet" href="styles.css">
   </head>
   <body>
@@ -20,10 +22,21 @@
     </div>
   <main id="mainContent" class="container">
       <header class="hero">
-        <h1>Generador de Contraseñas</h1>
-        <p class="subtitle">Crea contraseñas a tu gusto, comprueba su fuerza y descubre cuánto tardaría en romperse (con frases divertidas cuando ya es prácticamente imposible).</p>
+        <div class="hero-inner">
+          <div class="logo" aria-hidden="true">
+            <i data-feather="shield" aria-hidden="true"></i>
+          </div>
+          <div class="hero-text">
+            <h1>Generador de Contraseñas</h1>
+            <p class="subtitle">Crea contraseñas y frases seguras con controles finos, estimaciones de seguridad y herramientas para mantener tus claves a salvo.</p>
+          </div>
+          <div class="hero-actions">
+            <button id="themeToggle" class="btn secondary" aria-label="Cambiar tema" title="Cambiar tema" data-feather="sun">Tema</button>
+          </div>
+        </div>
       </header>
 
+      <div class="grid">
       <section class="card controls">
         <div class="row">
           <label for="length">Longitud: <span id="lengthVal">16</span></label>
@@ -43,32 +56,32 @@
           <input id="words" type="range" min="3" max="8" value="4">
         </div>
 
-        <div class="row actions">
+  <div class="row actions toolbar">
           <button id="generate" class="btn primary" aria-label="Generar contraseña">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 2l1.5 4.5L18 8l-4.5 1.5L12 14l-1.5-4.5L6 8l4.5-1.5L12 2z" fill="currentColor"/></svg>
+            <i data-feather="zap"></i>
             Generar
           </button>
           <button id="tutorialBtn" class="btn secondary" aria-label="Abrir tutorial">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 2a9.99 9.99 0 100 20 9.99 9.99 0 000-20zm1 14h-2v-2h2v2zm0-4h-2V6h2v6z" fill="currentColor"/></svg>
+            <i data-feather="book-open"></i>
             Tutorial
           </button>
           <button id="regenerate" class="btn" aria-label="Regenerar contraseña">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 6v3l4-4-4-4v3a8 8 0 108 8h-2a6 6 0 11-6-6z" fill="currentColor"/></svg>
+            <i data-feather="refresh-ccw"></i>
             Regenerar
           </button>
           <button id="copy" class="btn" aria-label="Copiar contraseña">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M16 1H4a2 2 0 00-2 2v14h2V3h12V1zM20 5H8a2 2 0 00-2 2v14a2 2 0 002 2h12a2 2 0 002-2V7a2 2 0 00-2-2zm0 16H8V7h12v14z" fill="currentColor"/></svg>
+            <i data-feather="copy"></i>
             Copiar
           </button>
           <button id="exportBtn" class="btn secondary" aria-label="Exportar backup cifrado">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 20h14v-2H5v2zM12 2l4 4h-3v6h-2V6H8l4-4z" fill="currentColor"/></svg>
+            <i data-feather="download"></i>
             Exportar
           </button>
           <button id="importBtn" class="btn secondary" aria-label="Importar backup cifrado">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 20h14v-2H5v2zM12 2L8 6h3v6h2V6h3l-4-4z" fill="currentColor"/></svg>
+            <i data-feather="upload"></i>
             Importar
           </button>
-        </div>
+  </div>
         <div class="row" style="margin-top:8px;align-items:center;gap:8px">
           <label for="kdfIterations">Iteraciones KDF:</label>
           <select id="kdfIterations" style="width:160px;padding:6px 8px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:transparent;color:var(--text)">
@@ -84,9 +97,9 @@
           <label><input id="deterministic" type="checkbox"> Generador determinista (semilla)</label>
           <input id="seedInput" type="text" placeholder="Introduce semilla para reproducir" style="flex:1">
         </div>
-      </section>
+  </section>
 
-      <section class="card output">
+  <section class="card output">
         <div class="passwordBox">
           <input id="password" aria-label="Contraseña generada o personalizada">
         </div>
@@ -119,28 +132,19 @@
                 <label class="inline-checkbox">
                   <input id="useCustom" type="checkbox"> Evaluar contraseña manual
                   <button type="button" class="info-btn" aria-describedby="desc-useCustom" data-tooltip="Activa para pegar y evaluar una contraseña manualmente">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
-                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z" fill="rgba(255,255,255,0.06)"/>
-                      <path d="M11 10h2v6h-2v-6zm0-4h2v2h-2V6z" fill="white"/>
-                    </svg>
+                            <i data-feather="info" aria-hidden="true"></i>
                   </button>
                 </label>
                 <label class="inline-checkbox">
                   <input id="hibpOptIn" type="checkbox"> Comprobar brechas (HIBP) — opt-in
                   <button type="button" class="info-btn" aria-describedby="desc-hibpOptIn" data-tooltip="Habilita comprobar si la contraseña apareció en brechas conocidas (se envía solo el prefijo SHA-1).">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
-                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z" fill="rgba(255,255,255,0.06)"/>
-                      <path d="M11 10h2v6h-2v-6zm0-4h2v2h-2V6z" fill="white"/>
-                    </svg>
+                    <i data-feather="info" aria-hidden="true"></i>
                   </button>
                 </label>
                 <label class="inline-checkbox">
                   <input id="hardcore" type="checkbox"> Modo hardcore
                   <button type="button" class="info-btn" aria-describedby="desc-hardcore" data-tooltip="Desglosa la contraseña por tokens y aplica reglas más estrictas de análisis.">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
-                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z" fill="rgba(255,255,255,0.06)"/>
-                      <path d="M11 10h2v6h-2v-6zm0-4h2v2h-2V6z" fill="white"/>
-                    </svg>
+                    <i data-feather="info" aria-hidden="true"></i>
                   </button>
                 </label>
               </div>
@@ -160,11 +164,16 @@
             <div id="calcSource" class="muted" style="margin-top:8px">Fuente: ajustes</div>
             <div id="breakdown" style="margin-top:8px;color:var(--muted);display:none"></div>
         </div>
-      </section>
+  </section>
+  </div>
 
       <footer class="footer">
-        <small>Generado con amor 🔒 · Abre <strong>index.html</strong> en tu navegador para usarlo localmente.</small>
-        <div style="margin-top:6px;color:var(--muted);font-size:0.9rem">Atajo: <strong>Shift+T</strong> — abrir tutorial</div>
+        <div class="footer-inner">
+          <div>
+            <small>Generado con ❤️ · Usa <strong>index.html</strong> localmente o sirve la carpeta para un comportamiento completo.</small>
+          </div>
+          <div class="footer-right">Atajo: <strong>Shift+T</strong></div>
+        </div>
       </footer>
     </main>
 
@@ -215,7 +224,14 @@
           </div>
         </div>
       </div>
-      <script src="script.js"></script>
+      <!-- Feather icons (optional), GSAP for animations, and app script -->
+        <script src="https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+        <script>
+          // Defer icon replacement until DOM is ready
+          document.addEventListener('DOMContentLoaded', ()=>{ try{ if(window.feather) window.feather.replace(); }catch(e){} });
+        </script>
+        <script src="script.js"></script>
       <!-- Blocking overlay shown during long KDF ops (hidden by default) -->
       <div id="blockingOverlay" style="display:none" aria-hidden="true">
         <div class="overlay-content">

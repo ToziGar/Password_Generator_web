@@ -1,29 +1,59 @@
 :root{
-  --bg:#0f1724;
-  --card:#0b1220aa;
-  --accent:#7c3aed;
-  --accent-2:#06b6d4;
+  /* Theme tokens - tweaked for a cleaner, less-glassy aesthetic */
+  --bg:#071022;
+  --surface: rgba(255,255,255,0.04);
+  --card: rgba(255,255,255,0.06);
+  --accent:#6D28D9; /* indigo-ish */
+  --accent-2:#06B6D4; /* cyan */
   --glass: rgba(255,255,255,0.06);
-  --text:#e6eef8;
-  --muted:#9fb0c8;
+  --text:#E7F2FB;
+  --muted:#9FB0C8;
+  --radius:14px;
+  --shadow-strong: 0 10px 28px rgba(2,6,23,0.55);
 }
+.js-focus-visible :focus{outline: none}
 *{box-sizing:border-box}
-html,body{height:100%;margin:0;font-family:Inter,system-ui,Segoe UI,Arial;color:var(--text);background:linear-gradient(180deg,#071025 0%,#081226 50%,#071022 100%);-webkit-font-smoothing:antialiased}
-.container{max-width:980px;margin:36px auto;padding:20px}
-.hero{margin-bottom:18px;text-align:center}
+html,body{height:100%;margin:0;font-family:Inter,system-ui,Segoe UI,Arial;color:var(--text);background:var(--bg);-webkit-font-smoothing:antialiased}
+.container{max-width:980px;margin:48px auto;padding:28px}
+.hero{margin-bottom:28px}
+.hero-inner{display:flex;gap:18px;align-items:center;justify-content:space-between}
+.logo{display:flex;align-items:center;justify-content:center;width:64px;height:64px;border-radius:16px;background:linear-gradient(180deg,var(--accent),var(--accent-2));box-shadow:0 8px 28px rgba(2,6,23,0.45)}
+.logo svg{fill:white}
+/* Feather icon sizing inside logo */
+.logo i{width:36px;height:36px;display:flex;align-items:center;justify-content:center}
+/* Hero actions (theme toggle etc.) */
+.hero-actions{display:flex;align-items:center;margin-left:12px}
+.hero-actions .btn{padding:8px 10px}
+
+/* Light theme overrides when html has data-theme="light" */
+html[data-theme="light"]{
+  --bg: #f6fafc;
+  --text: #0b1220;
+  --muted: #4b5563;
+  --card: rgba(11,17,24,0.02);
+  --accent: #4f46e5;
+  --accent-2: #06b6d4;
+}
+.hero-text{flex:1;text-align:left;padding-left:18px}
+.hero-text h1{font-size:1.9rem;margin:0;font-weight:800;letter-spacing:-0.4px}
+.subtitle{color:var(--muted);max-width:780px;margin:6px 0 0}
+.card{background:rgba(255,255,255,0.02);padding:22px;border-radius:var(--radius);box-shadow:var(--shadow-strong);margin-bottom:18px;border:1px solid rgba(255,255,255,0.04)}
+.hero{margin-bottom:18px;text-align:left}
 .hero h1{font-size:2rem;margin:6px 0}
-.subtitle{color:var(--muted);max-width:820px;margin:0 auto}
-.card{background:linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0.01));padding:18px;border-radius:12px;box-shadow:0 6px 24px rgba(2,6,23,0.6);margin-bottom:16px}
+.subtitle{color:var(--muted);max-width:820px;margin:0}
 .controls .row{display:flex;align-items:center;gap:12px;margin-bottom:12px}
 .checkbox-row{flex-wrap:wrap}
-.checkbox-row label{display:inline-flex;gap:8px;align-items:center;padding:6px 8px;border-radius:8px;background:var(--glass)}
+.checkbox-row label{display:inline-flex;gap:8px;align-items:center;padding:8px 10px;border-radius:10px;background:linear-gradient(180deg,rgba(255,255,255,0.012),rgba(255,255,255,0.008));border:1px solid rgba(255,255,255,0.02)}
+.passphrase-row{justify-content:space-between}
+.actions{justify-content:flex-end}
+.toolbar{flex-wrap:wrap;gap:10px}
 .passphrase-row{justify-content:space-between}
 input[type=range]{width:100%}
 .actions{justify-content:flex-end}
-.btn{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--text);padding:8px 12px;border-radius:10px;cursor:pointer;display:inline-flex;align-items:center;gap:8px}
-.btn.primary{background:linear-gradient(90deg,var(--accent),var(--accent-2));border:none;color:white;font-weight:700;box-shadow:0 10px 30px rgba(124,58,237,0.12)}
-.btn.secondary{background:linear-gradient(90deg,rgba(255,255,255,0.03),transparent);border:1px solid rgba(255,255,255,0.06);color:var(--text)}
-.btn.icon{padding:6px 8px;border-radius:8px;width:auto;height:auto}
+.btn{background:transparent;border:1px solid rgba(255,255,255,0.04);color:var(--text);padding:10px 14px;border-radius:12px;cursor:pointer;display:inline-flex;align-items:center;gap:10px;font-weight:600}
+.btn.primary{background:linear-gradient(180deg,var(--accent),var(--accent-2));border:none;color:white;font-weight:700;box-shadow:0 8px 22px rgba(2,6,23,0.35)}
+.btn.secondary{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--text);backdrop-filter:none}
+.btn.icon{padding:8px;border-radius:10px;width:auto;height:auto}
 
 /* Icons inside buttons */
 .btn svg{
@@ -38,31 +68,34 @@ input[type=range]{width:100%}
 .btn .icon-only svg{margin-right:0}
 
 /* Slight tweak so primary buttons' icons keep strong contrast */
-.btn.primary svg{opacity:0.95}
+.btn.primary svg{opacity:0.98}
 
-.btn{transition:transform 160ms ease, box-shadow 200ms ease, background 160ms ease}
-.btn:hover{transform:translateY(-3px);box-shadow:0 14px 40px rgba(12,18,40,0.45)}
-.btn:active{transform:translateY(0) scale(0.985)}
+.btn{transition:transform 160ms cubic-bezier(.2,.9,.2,1), box-shadow 180ms ease, background 140ms ease}
+.btn:hover{transform:translateY(-2px);box-shadow:0 12px 28px rgba(2,6,23,0.28)}
+.btn:active{transform:translateY(0) scale(0.995)}
+
+/* Focus and keyboard accessibility */
+.btn:focus{outline:3px solid rgba(109,40,217,0.10);outline-offset:4px}
 
 /* Loading state for buttons */
 .btn.loading{opacity:0.9;pointer-events:none;transform:none}
 .btn.loading::after{
   content:'';
   display:inline-block;
-  width:14px;height:14px;margin-left:8px;border-radius:50%;
-  border:2px solid rgba(255,255,255,0.2);border-top-color:white;animation:spin 800ms linear infinite;vertical-align:middle;
+  width:12px;height:12px;margin-left:8px;border-radius:50%;
+  border:2px solid rgba(255,255,255,0.18);border-top-color:white;animation:spin 800ms linear infinite;vertical-align:middle;
 }
 @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
 
 /* Estilo específico para el botón Evaluar (id=evalCustom) */
 #evalCustom{
-  background: linear-gradient(90deg,var(--accent-2),var(--accent));
+  background: linear-gradient(180deg,var(--accent-2),var(--accent));
   color: white;
   border: none;
   padding:10px 14px;
   border-radius:12px;
   font-weight:700;
-  box-shadow: 0 8px 22px rgba(3,7,18,0.6), 0 0 0 4px rgba(6,182,212,0.06);
+  box-shadow: 0 8px 20px rgba(2,6,23,0.28);
   display:inline-flex;
   align-items:center;
   gap:8px;
@@ -73,26 +106,41 @@ input[type=range]{width:100%}
   content: '\21BA'; /* símbolo de evaluación/recargar */
   display:inline-block;
   width:18px;height:18px;line-height:18px;text-align:center;
-  background:rgba(255,255,255,0.08);border-radius:6px;color:rgba(255,255,255,0.95);
+  background:rgba(255,255,255,0.06);border-radius:6px;color:rgba(255,255,255,0.95);
   font-size:12px;
 }
 
-#evalCustom:hover{transform:translateY(-3px) scale(1.02);box-shadow:0 14px 34px rgba(12,18,40,0.55), 0 0 0 6px rgba(124,58,237,0.06)}
-#evalCustom:active{transform:translateY(0) scale(0.985)}
+#evalCustom:hover{transform:translateY(-2px) scale(1.02);box-shadow:0 12px 30px rgba(2,6,23,0.32)}
+#evalCustom:active{transform:translateY(0) scale(0.99)}
 
 /* Pequeña animación de pulso cuando está activo (clase .pulse añadida por JS se puede usar) */
 .pulse{animation:btnPulse 900ms ease-out}
-@keyframes btnPulse{0%{box-shadow:0 8px 22px rgba(3,7,18,0.6),0 0 0 4px rgba(6,182,212,0.06)}50%{box-shadow:0 18px 40px rgba(3,7,18,0.7),0 0 0 10px rgba(6,182,212,0.06)}100%{box-shadow:0 8px 22px rgba(3,7,18,0.6),0 0 0 4px rgba(6,182,212,0.06)}}
+@keyframes btnPulse{0%{box-shadow:0 8px 18px rgba(2,6,23,0.28)}50%{box-shadow:0 14px 30px rgba(2,6,23,0.32)}100%{box-shadow:0 8px 18px rgba(2,6,23,0.28)}}
 .output .passwordBox{display:flex}
-.output input{width:100%;padding:14px;border-radius:10px;border:none;background:transparent;color:var(--text);font-weight:700;font-size:1.05rem}
+.output .passwordBox{display:flex;align-items:center;gap:10px}
+.output input{width:100%;padding:14px;border-radius:12px;border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.015);color:var(--text);font-weight:700;font-size:1.02rem}
+.output .copy-inline{padding:8px 10px;border-radius:10px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.04)}
+
+/* Inline copy animation */
+.copy-inline.copied{background:linear-gradient(90deg,var(--accent-2),var(--accent));color:white;transform:translateY(-4px);box-shadow:0 14px 40px rgba(13,21,40,0.45)}
+
+/* Copy button state (applies to any .btn that receives .copied) */
+.btn.copied{background:linear-gradient(180deg,var(--accent-2),var(--accent));color:white;box-shadow:0 12px 34px rgba(2,6,23,0.32);transform:translateY(-2px) scale(1.01)}
+
+/* Fallback badge */
+.fallback-badge{position:relative;display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;background:rgba(255,255,255,0.02);color:var(--muted);font-size:0.85rem;border:1px solid rgba(255,255,255,0.04);margin-top:12px;margin-left:12px}
+.fallback-badge::before{content:'⚠';display:inline-block;width:20px;height:20px;border-radius:999px;background:rgba(255,165,0,0.12);color:#FFB547;align-items:center;justify-content:center;display:flex;font-size:12px}
+
+/* Pulse utility used for meter and tutorial highlights */
+.pulse{animation:btnPulse 900ms ease-out}
 .output input.flash{animation:flash 700ms ease}
 
 .funny{margin-top:8px;color:#ffd36b;font-weight:600}
 .phrase-anim{opacity:0;transform:translateY(6px);transition:opacity 420ms ease, transform 420ms ease}
 .phrase-anim.show{opacity:1;transform:translateY(0)}
 .meter{height:12px;background:rgba(255,255,255,0.04);border-radius:8px;margin-top:12px;overflow:hidden}
-.meter-bar{height:100%;width:0%;background:linear-gradient(90deg,#ff7a7a,#ffd36b,#7c3aed);transition:width 400ms ease}
-.meter-bar{background-size:200% 100%;animation:shiftGradient 6s linear infinite}
+.meter{height:14px;background:linear-gradient(90deg,rgba(255,255,255,0.02),rgba(255,255,255,0.01));border-radius:999px;margin-top:12px;overflow:hidden;border:1px solid rgba(255,255,255,0.02)}
+.meter-bar{height:100%;width:0%;background:linear-gradient(90deg,var(--accent-2),var(--accent));transition:width 360ms cubic-bezier(.2,.9,.2,1);box-shadow:none;border-radius:999px}
 
 @keyframes shiftGradient{
   0%{background-position:0% 50%}
@@ -114,6 +162,15 @@ input[type=range]{width:100%}
 .footer{text-align:center;color:var(--muted);margin-top:8px}
 
 @media (max-width:640px){.container{padding:12px}.actions{flex-direction:column;gap:8px;align-items:stretch}.passphrase-row{flex-direction:column;align-items:flex-start}}
+@media (max-width:900px){.container{padding:16px}.grid{grid-template-columns:1fr}.actions{flex-direction:column;gap:10px;align-items:stretch}.passphrase-row{flex-direction:column;align-items:flex-start}}
+
+/* Two-column grid layout for main area */
+.grid{display:grid;grid-template-columns: minmax(320px,420px) 1fr;gap:22px;align-items:start}
+
+@media (max-width:640px){
+  .hero-inner{flex-direction:row;gap:12px}
+  .logo{width:48px;height:48px}
+}
 
 .crack-row{display:flex;gap:8px;align-items:center;margin-top:6px}
 .crack-row select,.crack-row input{padding:6px 8px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:transparent;color:var(--text)}
@@ -151,7 +208,7 @@ input[type=range]{width:100%}
 .info-btn svg{display:block}
 
 /* JS popover for tooltips (used on touch and for dynamic placement) */
-.tooltip-popover{position:fixed;z-index:260;background:rgba(2,6,23,0.96);color:var(--text);padding:8px 10px;border-radius:8px;box-shadow:0 10px 30px rgba(2,6,23,0.6);font-size:0.9rem;max-width:260px}
+.tooltip-popover{position:fixed;z-index:260;background:linear-gradient(180deg,rgba(7,18,34,0.98),rgba(3,8,14,0.98));color:var(--text);padding:10px 12px;border-radius:10px;box-shadow:0 10px 28px rgba(2,6,23,0.6);font-size:0.95rem;max-width:320px}
 .tooltip-popover[hidden]{display:none}
 .tooltip-popover .arrow{position:absolute;width:10px;height:10px;background:inherit;transform:rotate(45deg);left:50%;margin-left:-5px;box-shadow:inherit}
 /* When the popover appears above the reference element, arrow sits at bottom of popover */
@@ -174,9 +231,13 @@ input[type=range]{width:100%}
 }
 
 /* Modal para pedir la contraseña maestra (accesible) */
-.modal-backdrop{position:fixed;inset:0;background:rgba(2,6,23,0.7);display:flex;align-items:center;justify-content:center;z-index:120}
-.modal-dialog{background:linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0.01));padding:18px;border-radius:12px;max-width:520px;width:94%;box-shadow:0 10px 40px rgba(2,6,23,0.6);color:var(--text)}
-.tutorial-dialog{z-index:260}
+.modal-backdrop{position:fixed;inset:0;background:rgba(2,6,23,0.78);display:flex;align-items:center;justify-content:center;z-index:120}
+.modal-dialog{background:rgba(255,255,255,0.02);padding:22px;border-radius:14px;max-width:720px;width:94%;box-shadow:0 12px 40px rgba(2,6,23,0.6);color:var(--text);border:1px solid rgba(255,255,255,0.04)}
+.tutorial-dialog{z-index:280}
+.modal-header{display:flex;align-items:center;gap:10px}
+.modal-header svg{width:22px;height:22px;flex:0 0 auto}
+.modal-body{color:var(--muted);line-height:1.5}
+.modal-actions{display:flex;gap:10px;justify-content:flex-end}
 .modal-header{font-weight:700;margin-bottom:8px}
 .modal-body{margin-bottom:12px;color:var(--muted)}
 .modal-actions{display:flex;gap:8px;justify-content:flex-end}
@@ -192,6 +253,25 @@ input[type=range]{width:100%}
 /* Highlight a control during tutorial steps */
 .tutorial-highlight{position:relative;z-index:220;box-shadow:0 10px 30px rgba(124,58,237,0.12), 0 0 0 6px rgba(124,58,237,0.04);outline:2px solid rgba(124,58,237,0.18);border-radius:8px;transition:box-shadow 240ms ease, outline-color 240ms ease, transform 180ms ease}
 .tutorial-highlight.pulse{animation:btnPulse 900ms ease-out}
+
+/* Fancy focus halo for form controls */
+.controls input:focus, .controls select:focus, .controls textarea:focus {box-shadow:0 8px 30px rgba(109,40,217,0.12);outline: none; border-color: rgba(109,40,217,0.18)}
+
+/* Custom slider thumb */
+input[type=range]{appearance:none;-webkit-appearance:none;background:transparent;height:28px}
+input[type=range]::-webkit-slider-runnable-track{height:8px;background:linear-gradient(90deg,rgba(255,255,255,0.06),rgba(255,255,255,0.03));border-radius:999px}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;background:linear-gradient(180deg,var(--accent),var(--accent-2));box-shadow:0 8px 18px rgba(13,21,40,0.5);border:3px solid rgba(255,255,255,0.92);margin-top:-7px}
+input[type=range]:focus::-webkit-slider-thumb{box-shadow:0 14px 28px rgba(109,40,217,0.28)}
+
+/* Toggle-like appearance for checkboxes (keeps native input to preserve events) */
+.checkbox-row label{position:relative;padding-left:66px;padding-right:10px}
+.checkbox-row label input[type=checkbox]{position:absolute;left:16px;top:50%;transform:translateY(-50%);width:36px;height:20px;opacity:0;pointer-events:auto}
+.checkbox-row label::before{content:'';position:absolute;left:16px;top:50%;transform:translateY(-50%);width:36px;height:20px;border-radius:999px;background:linear-gradient(90deg,rgba(255,255,255,0.06),rgba(255,255,255,0.03));border:1px solid rgba(255,255,255,0.04)}
+.checkbox-row label::after{content:'';position:absolute;left:18px;top:50%;transform:translateY(-50%);width:14px;height:14px;border-radius:50%;background:white;box-shadow:0 6px 16px rgba(13,21,40,0.35);transition:left 180ms cubic-bezier(.2,.9,.2,1)}
+/* Use :has() to style label based on its input state (modern browsers). If :has is not supported the toggles remain usable but static. */
+.checkbox-row label:has(input[type=checkbox]:checked)::after{left:36px;background:linear-gradient(90deg,var(--accent-2),var(--accent))}
+.checkbox-row label:has(input[type=checkbox]:checked)::before{background:linear-gradient(90deg,var(--accent-2),var(--accent));border-color:rgba(109,40,217,0.18)}
+
 
 /* ensure highlight visible on small screens */
 @media (max-width:640px){
@@ -214,7 +294,7 @@ input[type=range]{width:100%}
 #overlayCancel:hover{transform:translateY(-3px);box-shadow:0 8px 20px rgba(12,18,40,0.4)}
 
 /* Privacy banner */
-.privacy-banner{position:sticky;top:12px;display:flex;gap:12px;align-items:center;padding:10px 14px;background:linear-gradient(90deg,rgba(8,10,20,0.9),rgba(4,6,12,0.85));border-radius:10px;margin:12px auto;max-width:980px;z-index:140;box-shadow:0 8px 30px rgba(2,6,23,0.6);color:var(--muted)}
+.privacy-banner{position:sticky;top:12px;display:flex;gap:12px;align-items:center;padding:10px 14px;background:rgba(255,255,255,0.02);border-radius:10px;margin:12px auto;max-width:980px;z-index:140;box-shadow:0 6px 20px rgba(2,6,23,0.35);color:var(--muted);border:1px solid rgba(255,255,255,0.03)}
 .privacy-banner .btn{padding:6px 10px;border-radius:8px}
 
 @media (max-width:640px){.privacy-banner{left:12px;right:12px;width:auto;padding:12px;flex-direction:column;align-items:flex-start}}
@@ -222,4 +302,35 @@ input[type=range]{width:100%}
 /* Skip link for keyboard users */
 .skip-link{position:fixed;left:12px;top:8px;background:rgba(0,0,0,0.7);color:var(--text);padding:8px 10px;border-radius:8px;z-index:300;transform:translateY(-120%);transition:transform 180ms ease,opacity 180ms ease;opacity:0}
 .skip-link:focus{transform:translateY(0);opacity:1;outline:2px solid rgba(124,58,237,0.28)}
+
+/* Accessibility: respect reduced motion preference */
+@media (prefers-reduced-motion: reduce){
+  *{animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; scroll-behavior: auto !important}
+}
+
+/* Focus-visible fallback styling for inputs and interactive elements */
+:focus-visible{outline: 3px solid rgba(109,40,217,0.12); outline-offset:3px}
+button:focus-visible, .btn:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible{outline:3px solid rgba(109,40,217,0.12); outline-offset:4px}
+
+/* Ensure buttons have consistent min height and tap target size */
+.btn{min-height:40px;min-width:44px;padding:10px 14px}
+
+/* Smaller hero layout on mobile: stack and center */
+@media (max-width:720px){
+  .hero-inner{flex-direction:column;align-items:center;gap:12px}
+  .hero-text{padding-left:0;text-align:center}
+  .hero-actions{margin-left:0}
+}
+
+/* Mobile: increase grid gap and stack elegantly */
+@media (max-width:900px){
+  .grid{grid-template-columns:1fr;gap:16px}
+  .container{padding:18px}
+}
+
+/* Subtle press animation for buttons (hardware-accelerated) */
+.btn:active{transform:translateY(0) scale(0.995)}
+
+/* Improve contrast for small text on light theme */
+html[data-theme="light"] .muted{color:#6b7280}
 

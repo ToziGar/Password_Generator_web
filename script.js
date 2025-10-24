@@ -22,6 +22,9 @@ if(!statusEl){
 // Lightweight metrics for development/testing (kept in-memory only)
 window.__pgw_metrics = window.__pgw_metrics || { cancels: 0, retries: 0 };
 
+// Runtime flags to indicate fallbacks used (set when fallbacks activate)
+window.__pgw_worker_fallback = false;
+window.__pgw_wordlist_fallback = false;
 window.addEventListener('error', (ev) => {
   console.error('Unhandled error:', ev.error || ev.message, ev);
   try{ statusEl.textContent = 'PGW ERROR: ' + (ev.message || (ev.error && ev.error.message) || 'see console'); }catch(e){}
@@ -67,7 +70,129 @@ const DIGITS = '0123456789';
 const WORD_POOL = 2048; // tamaño típico usado en listas de palabras (fallback)
 let wordList = null; // se cargará desde wordlist.txt si está disponible
 
-// Cargar wordlist local (async). Si falla, quedará null y usaremos fakeWord
+// Embedded fallback wordlist (used when fetching wordlist.txt fails - keeps offline demo usable)
+const EMBEDDED_WORDLIST = [
+  'amor','libro','casa','sol','luna','mar','montaña','río','cielo','estrella','viento','fuego','agua','bosque','llave','puerta','camino','puerta','gato','perro','valle','ciudad','mariposa','hoja','roca','arena','nube','sueño','voz','tempo','brisa','café','teatro','música','lago','isla','puente','torre','jardín','flor','hoja','corazón','amistad','familia','viaje','mapa','reloj','tesoro','ritmo','pintura','sombra','luz'
+];
+
+// Fallback worker source: we'll attempt to create a Worker from 'worker.js' normally,
+// but when the page is opened via file:// new Worker('worker.js') is blocked (origin 'null').
+// In that case, we can create a blob-based worker using this embedded source so the app still functions.
+const WORKER_FALLBACK_SRC = `// Worker for crypto-heavy operations: sha1, drbg (HMAC-DRBG using HMAC-SHA256), pbkdf2
+self.addEventListener('message', async (ev) => {
+  const { id, action, data } = ev.data || {};
+  try{
+    if(action === 'sha1'){
+      const enc = new TextEncoder();
+      const buf = enc.encode(data.str);
+      const h = await crypto.subtle.digest('SHA-1', buf);
+      const b = new Uint8Array(h);
+      const hex = Array.from(b).map(x=>x.toString(16).padStart(2,'0')).join('').toUpperCase();
+      self.postMessage({id, ok:true, result: hex});
+      return;
+    }
+
+    if(action === 'sha256'){
+      const enc = new TextEncoder();
+      const buf = enc.encode(data.str);
+      const h = await crypto.subtle.digest('SHA-256', buf);
+      const b = new Uint8Array(h);
+      self.postMessage({id, ok:true, result: b});
+      return;
+    }
+
+    if(action === 'hmacDrbg'){
+      const enc = new TextEncoder();
+      const seedBytes = enc.encode(data.seed || '');
+      const seedHash = await crypto.subtle.digest('SHA-256', seedBytes);
+      const keyRaw = new Uint8Array(seedHash);
+      const key = await crypto.subtle.importKey('raw', keyRaw, {name:'HMAC', hash:'SHA-256'}, false, ['sign']);
+      const out = new Uint8Array(data.length || 64);
+      let counter = 0;
+      let filled = 0;
+      while(filled < out.length){
+        const ctr = new Uint8Array(4);
+        ctr[0] = (counter >>> 24) & 0xFF;
+        ctr[1] = (counter >>> 16) & 0xFF;
+        ctr[2] = (counter >>> 8) & 0xFF;
+        ctr[3] = (counter) & 0xFF;
+        const dataInput = new Uint8Array(ctr.length + seedBytes.length);
+        dataInput.set(ctr, 0);
+        dataInput.set(seedBytes, ctr.length);
+        const mac = await crypto.subtle.sign('HMAC', key, dataInput);
+        const macBytes = new Uint8Array(mac);
+        const take = Math.min(macBytes.length, out.length - filled);
+        out.set(macBytes.slice(0,take), filled);
+        filled += take;
+        counter++;
+      }
+      self.postMessage({id, ok:true, result: out.buffer}, [out.buffer]);
+      return;
+    }
+
+    if(action === 'pbkdf2'){
+      const enc = new TextEncoder();
+      const passwordBytes = enc.encode(data.password || '');
+      const saltBytes = enc.encode(data.salt || '');
+      const iterations = Number(data.iterations) || 100000;
+      const dkLen = Number(data.length) || 32;
+      if(!data.reportProgress){
+        try{
+          const passKey = await crypto.subtle.importKey('raw', passwordBytes, {name:'PBKDF2'}, false, ['deriveBits']);
+          const params = {name:'PBKDF2', salt: saltBytes, iterations: iterations, hash:'SHA-256'};
+          const bits = await crypto.subtle.deriveBits(params, passKey, dkLen*8);
+          const out = new Uint8Array(bits);
+          self.postMessage({id, ok:true, result: out.buffer}, [out.buffer]);
+          return;
+        }catch(e){ }
+      }
+      const hmacKey = await crypto.subtle.importKey('raw', passwordBytes, {name:'HMAC', hash:'SHA-256'}, false, ['sign']);
+      const hLen = 32;
+      const l = Math.ceil(dkLen / hLen);
+      const r = dkLen - (l-1)*hLen;
+      const derived = new Uint8Array(dkLen);
+      const totalIterations = iterations * l;
+      let completedIterations = 0;
+      const updateEvery = Math.max(1, Math.floor(iterations / 50));
+      for(let i=1;i<=l;i++){
+        const intBuf = new Uint8Array(4);
+        intBuf[0] = (i >>> 24) & 0xFF;
+        intBuf[1] = (i >>> 16) & 0xFF;
+        intBuf[2] = (i >>> 8) & 0xFF;
+        intBuf[3] = (i) & 0xFF;
+        const msg1 = new Uint8Array(saltBytes.length + 4);
+        msg1.set(saltBytes,0); msg1.set(intBuf, saltBytes.length);
+        let u = new Uint8Array(await crypto.subtle.sign('HMAC', hmacKey, msg1));
+        let t = new Uint8Array(u);
+        completedIterations++;
+        if((completedIterations % updateEvery) === 0){
+          const pct = Math.floor((completedIterations / totalIterations) * 100);
+          self.postMessage({id, progress:true, percent: pct, completed: completedIterations, total: totalIterations});
+        }
+        for(let j=2;j<=iterations;j++){
+          u = new Uint8Array(await crypto.subtle.sign('HMAC', hmacKey, u));
+          for(let k=0;k<u.length;k++) t[k] ^= u[k];
+          completedIterations++;
+          if((completedIterations % updateEvery) === 0){
+            const pct = Math.floor((completedIterations / totalIterations) * 100);
+            self.postMessage({id, progress:true, percent: pct, completed: completedIterations, total: totalIterations});
+          }
+        }
+        const offset = (i-1)*hLen;
+        const take = (i === l) ? r : hLen;
+        derived.set(t.slice(0,take), offset);
+      }
+      self.postMessage({id, progress:true, percent:100, completed: totalIterations, total: totalIterations});
+      self.postMessage({id, ok:true, result: derived.buffer}, [derived.buffer]);
+      return;
+    }
+    throw new Error('unknown action');
+  }catch(err){
+    self.postMessage({id, ok:false, error:err.message || String(err)});
+  }
+});
+`;
+// Cargar wordlist local (async). Si falla, intentamos remoto y finalmente usamos EMBEDDED_WORDLIST
 fetch('wordlist.txt').then(r=>{
   if(!r.ok) throw new Error('no local');
   return r.text();
@@ -77,10 +202,17 @@ fetch('wordlist.txt').then(r=>{
 }).catch(err=>{
   console.warn('No se pudo cargar wordlist local:', err);
   // Intentamos cargar BIP39 como fallback remoto (opcional)
-  fetch('https://raw.githubusercontent.com/bitcoin/bips/master/bip-0039/english.txt').then(r=>r.text()).then(t=>{
+  fetch('https://raw.githubusercontent.com/bitcoin/bips/master/bip-0039/english.txt').then(r=>{
+    if(!r.ok) throw new Error('no remote');
+    return r.text();
+  }).then(t=>{
     const lines = t.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
     if(lines.length>0){ wordList = lines; console.log('Wordlist remota cargada, palabras:', lines.length); }
-  }).catch(()=>{/* ignore */});
+  }).catch(()=>{
+    // Último recurso: usar lista embebida mínima para que el modo passphrase siga funcionando offline/file://
+    wordList = EMBEDDED_WORDLIST.slice();
+    console.warn('Usando wordlist embebida de fallback, palabras:', wordList.length);
+  });
 });
 
 // Frases graciosas adicionales (seleccionadas aleatoriamente)
@@ -469,9 +601,9 @@ let workerReqId = 1;
 const workerCallbacks = new Map();
 function ensureWorker(){
   if(cryptoWorker) return;
-  try{
-    cryptoWorker = new Worker('worker.js');
-    cryptoWorker.addEventListener('message', (ev)=>{
+  // Helper to attach message handler
+  const attachHandlers = (w) => {
+    w.addEventListener('message', (ev)=>{
       const msg = ev.data || {};
       const { id, ok, result, error, progress } = msg;
       const cb = workerCallbacks.get(id);
@@ -484,7 +616,32 @@ function ensureWorker(){
         if(ok) cb.resolve(result); else cb.reject(new Error(error));
       }
     });
-  }catch(e){ console.warn('No se pudo crear worker:', e); cryptoWorker = null; }
+    cryptoWorker = w;
+  };
+
+  try{
+    // First attempt: normal worker from file (works when served over http/https)
+    const w = new Worker('worker.js');
+    attachHandlers(w);
+    return;
+  }catch(e){
+    console.warn('No se pudo crear worker desde archivo (posible file://):', e);
+    // Try fallback: create worker from embedded source via Blob (works even when page is opened via file://)
+    try{
+      const blob = new Blob([WORKER_FALLBACK_SRC], {type:'application/javascript'});
+      const url = URL.createObjectURL(blob);
+      const w2 = new Worker(url);
+      attachHandlers(w2);
+      // mark fallback used so UI can show badge
+      window.__pgw_worker_fallback = true;
+      console.log('Worker creado desde blob fallback');
+      try{ showFallbackBadge(); }catch(e){}
+      return;
+    }catch(err2){
+      console.warn('No se pudo crear worker desde blob fallback:', err2);
+      cryptoWorker = null;
+    }
+  }
 }
 
 function workerRequest(action, data, onProgress){
@@ -633,7 +790,10 @@ if(generateBtn){
     console.log('generateBtn clicked');
     statusEl.textContent = 'PGW: Generando (manual borrado)';
     setLoading(true,'Generando...');
-    try{ await render(); }catch(e){ console.error('Error en render:', e); statusEl.textContent='PGW: error al generar'; }
+    try{ await render(); 
+      // micro-interaction: pulse the output and meter to highlight new password
+      try{ passwordOut.classList.add('flash'); meterBar.classList.add('pulse'); setTimeout(()=>{ passwordOut.classList.remove('flash'); meterBar.classList.remove('pulse'); }, 900); }catch(e){}
+    }catch(e){ console.error('Error en render:', e); statusEl.textContent='PGW: error al generar'; }
     finally{ setLoading(false); }
   });
   // Fallback onclick (safe)
@@ -647,13 +807,19 @@ else { console.warn('regenerateBtn no encontrado'); }
 if(copyBtn){
   copyBtn.addEventListener('click', ()=>{
     navigator.clipboard.writeText(passwordOut.value).then(()=>{
-      copyBtn.textContent = '¡Copiado!';
+      // visual micro-feedback: add .copied class and toast; preserve inner SVG
+      copyBtn.classList.add('copied');
+      setTimeout(()=>copyBtn.classList.remove('copied'),1200);
       // animación del campo
       passwordOut.classList.add('flash');
       setTimeout(()=>passwordOut.classList.remove('flash'),700);
-      setTimeout(()=>copyBtn.textContent = 'Copiar',1200);
-        // Try to clear clipboard after 15s (best-effort) and notify user
-        tryClearClipboard(15000);
+      // Toast notification
+      try{ showToast('Contraseña copiada al portapapeles', 'info', 2200); }catch(e){}
+      // Try to clear clipboard after 15s (best-effort) and notify user
+      tryClearClipboard(15000);
+    }).catch((err)=>{
+      console.warn('No se pudo copiar al portapapeles:', err);
+      try{ showToast('No se pudo copiar (permiso denegado)', 'warn', 3500); }catch(e){}
     });
     console.log('copyBtn clicked');
   });
@@ -1161,6 +1327,13 @@ async function renderTutorialStep(){
   const body = el('tutorialStepBody');
   if(title) title.textContent = s.title || ('Paso ' + (_tutorialIndex+1));
   if(body) body.textContent = s.body || '';
+  // Small entrance animations for tutorial text (GSAP if available)
+  try{
+    if(window.gsap){
+      try{ gsap.fromTo(title, {y:8, opacity:0}, {y:0, opacity:1, duration:0.45, ease:'power2.out'}); }catch(e){}
+      try{ gsap.fromTo(body, {y:10, opacity:0}, {y:0, opacity:1, duration:0.45, delay:0.05, ease:'power2.out'}); }catch(e){}
+    }
+  }catch(e){}
   // remove any previous highlights
   try{ Array.from(document.querySelectorAll('.tutorial-highlight')).forEach(n=>n.classList.remove('tutorial-highlight')); }catch(e){}
   // apply suggested settings for this step
@@ -1188,6 +1361,13 @@ async function renderTutorialStep(){
         }catch(e){}
       }
     }
+      // GSAP highlight glow (subtle)
+      try{
+        if(window.gsap && s.highlight){
+          const sels = Array.isArray(s.highlight) ? s.highlight : [s.highlight];
+          for(const sel of sels){ try{ const n = document.querySelector(sel); if(n){ try{ gsap.fromTo(n, {boxShadow: '0 0 0px rgba(0,0,0,0)'}, {boxShadow: '0 0 18px rgba(255,200,50,0.12)', duration:0.6, yoyo:true, repeat:1, ease: 'sine.inOut'}); }catch(e){} } }catch(e){} }
+        }
+      }catch(e){}
   }catch(e){ /* ignore pulse errors */ }
 
   // Update UI by generating or analyzing current values so the user sees live entropy and estimate
@@ -1501,6 +1681,24 @@ function showTooltipForBtn(btn){
   },0);
 }
 
+// Show a small badge in the header when fallbacks are active (useful for dev / debugging)
+function showFallbackBadge(){
+  try{
+    let badge = document.getElementById('pgw-fallback-badge');
+    if(!badge){
+      badge = document.createElement('div'); badge.id = 'pgw-fallback-badge'; badge.className = 'fallback-badge';
+      badge.setAttribute('aria-live','polite');
+      const header = document.querySelector('.hero') || document.body;
+      header.appendChild(badge);
+    }
+    const parts = [];
+    if(window.__pgw_worker_fallback) parts.push('Worker: blob');
+    if(window.__pgw_wordlist_fallback) parts.push('Wordlist: embebida');
+    if(parts.length===0){ badge.style.display = 'none'; return; }
+    badge.style.display = 'inline-flex'; badge.textContent = 'Fallback activo — ' + parts.join(' | ');
+  }catch(e){console.warn('No se pudo mostrar badge de fallback', e);} 
+}
+
 function hideTooltip(){ const pop = document.getElementById('pgw-tooltip-popover'); if(!pop) return; pop.setAttribute('hidden',''); if(pop._cleanup) try{ pop._cleanup(); }catch(e){} }
 
 // Initialize info button behavior: on touch/click show JS popover, on mouse hover fallback to CSS tooltip
@@ -1522,7 +1720,50 @@ function initInfoButtons(){
 }
 
 // Auto-init info buttons on DOMContentLoaded
-document.addEventListener('DOMContentLoaded', ()=>{ try{ initInfoButtons(); }catch(e){console.error('initInfoButtons', e);} });
+// Initialize UI affordances on DOMContentLoaded
+document.addEventListener('DOMContentLoaded', ()=>{
+  try{ initInfoButtons(); }catch(e){console.error('initInfoButtons', e);} 
+  try{ initTheme(); }catch(e){console.error('initTheme', e);} 
+  try{ // show badge if any fallbacks are active (set by worker/wordlist init)
+    if(window.__pgw_worker_fallback || window.__pgw_wordlist_fallback) showFallbackBadge();
+  }catch(e){}
+  try{
+    const t = document.getElementById('themeToggle');
+    if(t) t.addEventListener('click', ()=>{
+      try{
+        const cur = document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+        const next = cur === 'light' ? 'dark' : 'light';
+        setTheme(next);
+        showToast(`Tema: ${next}`, 'info', 1600);
+      }catch(e){ console.error('theme toggle failed', e); }
+    });
+  }catch(e){ console.error('wire themeToggle failed', e); }
+});
+
+// Theme helpers: persist theme to localStorage and update the toggle icon
+function setTheme(theme){
+  try{ document.documentElement.setAttribute('data-theme', theme); }catch(e){}
+  try{ localStorage.setItem('pgw_theme', theme); }catch(e){}
+  try{ updateThemeToggleIcon(theme); }catch(e){}
+}
+function updateThemeToggleIcon(theme){
+  try{
+    const btn = el('themeToggle');
+    if(!btn) return;
+    btn.setAttribute('aria-pressed', theme === 'light' ? 'true' : 'false');
+    // Use feather icons; replace markup and re-run feather.replace()
+    btn.innerHTML = (theme === 'light') ? '<i data-feather="sun" aria-hidden="true"></i> Tema' : '<i data-feather="moon" aria-hidden="true"></i> Tema';
+    if(window.feather) try{ window.feather.replace(); }catch(e){}
+  }catch(e){ console.error('updateThemeToggleIcon failed', e); }
+}
+function initTheme(){
+  try{
+    const stored = localStorage.getItem('pgw_theme');
+    const prefersLight = (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches);
+    const theme = stored || (prefersLight ? 'light' : 'dark');
+    setTheme(theme);
+  }catch(e){ console.error('initTheme failed', e); }
+}
 
 // Privacy banner: show unless dismissed
 document.addEventListener('DOMContentLoaded', ()=>{

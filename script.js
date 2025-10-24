@@ -1085,9 +1085,21 @@ const tutorialBtn = el('tutorialBtn');
 let _tutorialSnapshot = null;
 const tutorialSteps = [
   { title: 'Longitud: seguridad vs memoria', body: 'Aumentar longitud incrementa exponencialmente la entropía. Vamos a probar 24 caracteres.', apply: ()=>{ try{ lengthEl.value = 24; updateUI(); }catch(e){} }, highlight: '#length' },
+  { title: 'Clases de caracteres', body: 'Agregar mayúsculas, números y símbolos hace la contraseña más resistente. Activamos mayúsculas, números y símbolos.', apply: ()=>{ try{ upper.checked = true; numbers.checked = true; symbols.checked = true; updateUI(); }catch(e){} }, highlight: '#upper' },
   { title: 'Frase (passphrase)', body: 'Las frases (palabras aleatorias) suelen ser fáciles de recordar y seguras. Activamos passphrase y usamos 5 palabras.', apply: ()=>{ try{ passphrase.checked = true; words.value = 5; updateUI(); }catch(e){} }, highlight: '#passphrase' },
   { title: 'Generación determinista', body: 'Puedes usar una semilla para reproducir la passphrase. Activamos modo determinista y sugerimos una semilla.', apply: ()=>{ try{ const d = el('deterministic'); if(d) d.checked = true; const s = el('seedInput'); if(s) s.value = 'mi-semilla-de-ejemplo'; updateUI(); }catch(e){} }, highlight: '#deterministic' },
-  { title: 'Exportar backup', body: 'Puedes exportar la passphrase cifrada con una contraseña maestra (PBKDF2 + AES-GCM). Prueba el flujo de exportar.', apply: ()=>{}, highlight: '#exportBtn' }
+  { title: 'Comprobación HIBP (opt-in)', body: 'HIBP usa k-anonymity: solo se envía el prefijo SHA-1. Activamos opt-in y mostramos cómo comprobar.', apply: ()=>{ try{ if(hibpOptIn) hibpOptIn.checked = true; updateUI(); }catch(e){} }, highlight: '#hibpOptIn' },
+  { title: 'Iteraciones KDF', body: 'Para exportar el backup puedes elegir iteraciones PBKDF2. Más iteraciones = más seguridad pero más tiempo.', apply: ()=>{ try{ if(kdfIterations) kdfIterations.value = 50000; estimateKdfEta(Number(kdfIterations.value)); }catch(e){} }, highlight: '#kdfIterations' },
+  { title: 'Exportar backup (demostración)', body: 'Si quieres, podemos simular un export cifrado con una contraseña maestra. Se te pedirá confirmación antes de crear un fichero descargable.', apply: async ()=>{ try{ const proceed = await showConfirmModal('¿Deseas ejecutar una demostración de export (se descargará un fichero cifrado de ejemplo)?'); if(!proceed) return; // user cancelled
+        // Use a low iteration count for demo to avoid long waits
+        const pw = passwordInput.value || await generatePassword();
+        const payload = { createdAt: (new Date()).toISOString(), password: pw, options: { length: lengthEl.value, lower: lower.checked, upper: upper.checked, numbers: numbers.checked, symbols: symbols.checked, passphrase: passphrase.checked, words: words.value } };
+        const master = await showMasterModal('Introduce una contraseña maestra para la demo (no se guardará).', '', { requireConfirm: false });
+        if(!master){ showToast('Demo de export cancelada.', 'info'); return; }
+        setLoading(true,'Cifrando demo...');
+        try{ const demoExport = await encryptBackupObject(payload, master, 1000); const blob = new Blob([JSON.stringify(demoExport,null,2)],{type:'application/json'}); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'pgw-demo-backup.json'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(a.href); showToast('Demo export creada (descarga iniciada).', 'info', 4000); }catch(e){ console.error('demo export failed', e); showToast('Demo export falló: '+(e.message||e), 'error', 4000); }finally{ setLoading(false); }
+      }catch(e){ console.error('tutorial export demo error', e); } }, highlight: '#exportBtn' },
+  { title: 'Consejos finales', body: 'Resumen: usa una longitud adecuada, añade clases de caracteres o usa una frase memorizable y exporta backups cifrados si necesitas portabilidad. ¡Listo!', apply: ()=>{}, highlight: ['#password','#meterBar'] }
 ];
 let _tutorialIndex = 0;
 
@@ -1115,7 +1127,11 @@ async function openTutorial(){
     } };
     document.addEventListener('keydown', onKey);
     // store cleanup handler on modal so closeTutorial can remove it
-    modal._cleanup = ()=>{ document.removeEventListener('keydown', onKey); };
+    // also attach a backdrop click handler (clicking outside dialog closes tutorial)
+    const onBackdropClick = (ev)=>{ try{ if(ev.target === modal) { closeTutorial(true); } }catch(e){} };
+    modal.addEventListener('click', onBackdropClick);
+    const prevCleanup = (modal._cleanup && typeof modal._cleanup === 'function') ? modal._cleanup : null;
+    modal._cleanup = ()=>{ try{ document.removeEventListener('keydown', onKey); }catch(e){} try{ modal.removeEventListener('click', onBackdropClick); }catch(e){} if(prevCleanup) try{ prevCleanup(); }catch(e){} };
     // focus first actionable element after open
     setTimeout(()=>{ try{ (firstFocusable || el('tutorialNext')).focus(); }catch(e){} }, 40);
   }catch(e){/* ignore focus trap errors */}
@@ -1176,7 +1192,10 @@ async function renderTutorialStep(){
 
   // Update UI by generating or analyzing current values so the user sees live entropy and estimate
   try{
+    // show generation activity for better UX (tutorial triggers generation)
+    try{ setLoading(true,'Generando...'); }catch(e){}
     await render();
+    try{ setLoading(false); }catch(e){}
     // compute analysis for the currently displayed password
     const curPw = (passwordInput && passwordInput.value) ? passwordInput.value : '';
     const analysis = analyzePassword(curPw);
@@ -1189,6 +1208,8 @@ async function renderTutorialStep(){
       const phrase = funnyFor(chosen.seconds, entropy);
       entropyEl.textContent = `Entropía: ${entRounded} bits — ${formatRate(custom)}: ${chosen.label} — ${phrase}`;
     }
+    // visual pulse on the password output so user notices the generated value
+    try{ passwordInput.classList.add('flash'); setTimeout(()=>passwordInput.classList.remove('flash'),900); }catch(e){}
   }catch(e){ console.error('renderTutorialStep render/analysis failed', e); }
 
   // update buttons

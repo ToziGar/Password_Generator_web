@@ -44,12 +44,30 @@
         </div>
 
         <div class="row actions">
-          <button id="generate" class="btn primary">Generar</button>
-          <button id="tutorialBtn" class="btn">Tutorial</button>
-          <button id="regenerate" class="btn">Regenerar</button>
-          <button id="copy" class="btn">Copiar</button>
-          <button id="exportBtn" class="btn">Exportar (.json cifrado)</button>
-          <button id="importBtn" class="btn">Importar (.json cifrado)</button>
+          <button id="generate" class="btn primary" aria-label="Generar contraseña">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 2l1.5 4.5L18 8l-4.5 1.5L12 14l-1.5-4.5L6 8l4.5-1.5L12 2z" fill="currentColor"/></svg>
+            Generar
+          </button>
+          <button id="tutorialBtn" class="btn secondary" aria-label="Abrir tutorial">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 2a9.99 9.99 0 100 20 9.99 9.99 0 000-20zm1 14h-2v-2h2v2zm0-4h-2V6h2v6z" fill="currentColor"/></svg>
+            Tutorial
+          </button>
+          <button id="regenerate" class="btn" aria-label="Regenerar contraseña">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 6v3l4-4-4-4v3a8 8 0 108 8h-2a6 6 0 11-6-6z" fill="currentColor"/></svg>
+            Regenerar
+          </button>
+          <button id="copy" class="btn" aria-label="Copiar contraseña">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M16 1H4a2 2 0 00-2 2v14h2V3h12V1zM20 5H8a2 2 0 00-2 2v14a2 2 0 002 2h12a2 2 0 002-2V7a2 2 0 00-2-2zm0 16H8V7h12v14z" fill="currentColor"/></svg>
+            Copiar
+          </button>
+          <button id="exportBtn" class="btn secondary" aria-label="Exportar backup cifrado">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 20h14v-2H5v2zM12 2l4 4h-3v6h-2V6H8l4-4z" fill="currentColor"/></svg>
+            Exportar
+          </button>
+          <button id="importBtn" class="btn secondary" aria-label="Importar backup cifrado">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 20h14v-2H5v2zM12 2L8 6h3v6h2V6h3l-4-4z" fill="currentColor"/></svg>
+            Importar
+          </button>
         </div>
         <div class="row" style="margin-top:8px;align-items:center;gap:8px">
           <label for="kdfIterations">Iteraciones KDF:</label>
@@ -169,22 +187,22 @@
             <button id="masterConfirm" class="btn primary">Confirmar</button>
           </div>
         </div>
-          <!-- Tutorial modal (interactive guided mode) -->
-          <div id="tutorialModal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="tutorialTitle" style="display:none">
-            <div class="modal-dialog tutorial-dialog">
-              <div id="tutorialTitle" class="modal-header">Tutorial rápido</div>
-              <div class="modal-body tutorial-content">
-                <div id="tutorialStepTitle" style="font-weight:700;margin-bottom:8px">Paso 1</div>
-                <div id="tutorialStepBody">Bienvenido — este tutorial te guiará para crear una passphrase segura.</div>
-                <div id="tutorialEntropy" style="margin-top:10px;color:var(--muted);font-size:0.95rem">Entropía actual: —</div>
-              </div>
-              <div class="modal-actions">
-                <button id="tutorialPrev" class="btn">Anterior</button>
-                <button id="tutorialNext" class="btn primary">Siguiente</button>
-                <button id="tutorialClose" class="btn">Cerrar</button>
-              </div>
-            </div>
+      </div>
+      <!-- Tutorial modal (interactive guided mode) -->
+      <div id="tutorialModal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="tutorialTitle" style="display:none">
+        <div class="modal-dialog tutorial-dialog">
+          <div id="tutorialTitle" class="modal-header">Tutorial rápido</div>
+          <div class="modal-body tutorial-content">
+            <div id="tutorialStepTitle" style="font-weight:700;margin-bottom:8px">Paso 1</div>
+            <div id="tutorialStepBody">Bienvenido — este tutorial te guiará para crear una passphrase segura.</div>
+                <div id="tutorialEntropy" role="status" aria-live="polite" aria-atomic="true" style="margin-top:10px;color:var(--muted);font-size:0.95rem">Entropía actual: —</div>
           </div>
+          <div class="modal-actions">
+            <button id="tutorialPrev" class="btn">Anterior</button>
+            <button id="tutorialNext" class="btn primary">Siguiente</button>
+            <button id="tutorialClose" class="btn">Cerrar</button>
+          </div>
+        </div>
       </div>
       <!-- Generic confirm modal to replace window.confirm() (accessible) -->
       <div id="confirmModal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="confirmModalLabel" style="display:none">

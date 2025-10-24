@@ -1,0 +1,12 @@
+{
+  "name": "password-generator-web",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "start": "python -m http.server 8000",
+    "test:playwright": "npx playwright test --project=chromium"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.40.0"
+  }
+}

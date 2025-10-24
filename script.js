@@ -1335,21 +1335,43 @@ function showSpotFor(node, labelText){
     const ov = document.getElementById('pgw-tutorial-overlay'); const spot = document.getElementById('pgw-tutorial-spot');
     if(!ov || !spot) return;
     const rect = node.getBoundingClientRect();
-    const left = Math.max(8, rect.left - 8);
-    const top = Math.max(8, rect.top - 8);
-    const w = Math.max(32, rect.width + 16);
-    const h = Math.max(24, rect.height + 16);
+    // base geometry
+    let left = rect.left - 8;
+    let top = rect.top - 8;
+    let w = rect.width + 16;
+    let h = rect.height + 16;
+    // viewport and header/footer awareness
+    const vw = Math.max(320, window.innerWidth || document.documentElement.clientWidth);
+    const vh = Math.max(200, window.innerHeight || document.documentElement.clientHeight);
+    const headerEl = document.querySelector('.hero') || document.querySelector('header');
+    const footerEl = document.querySelector('.footer');
+    const headerH = headerEl ? headerEl.getBoundingClientRect().height : 0;
+    const footerH = footerEl ? footerEl.getBoundingClientRect().height : 0;
+    const margin = 12; // keep some breathing room from edges and fixed chrome
+    // Handle extremely small targets (e.g., icon buttons) by expanding the spot to a tappable focus area
+    const minW = 44, minH = 44;
+    if(rect.width < 12 || rect.height < 12){
+      w = Math.max(minW, w);
+      h = Math.max(minH, h);
+      left = rect.left + (rect.width/2) - (w/2);
+      top = rect.top + (rect.height/2) - (h/2);
+    }
+    // Ensure spot fits within viewport (clamp and avoid overlapping header/footer)
+    w = Math.min(w, vw - (margin*2));
+    h = Math.min(h, vh - headerH - footerH - (margin*2));
+    left = Math.min(Math.max(margin, left), vw - w - margin);
+    top = Math.min(Math.max(margin + headerH, top), vh - h - footerH - margin);
     // Scroll into view (smooth unless reduced motion)
     try{ if(!reduced) node.scrollIntoView({behavior:'smooth', block:'center', inline:'center'}); else node.scrollIntoView({block:'center'}); }catch(e){}
     // Position the overlay spot
     if(reduced || !window.gsap){
       ov.classList.add('visible');
-      spot.style.left = `${left}px`; spot.style.top = `${top}px`; spot.style.width = `${w}px`; spot.style.height = `${h}px`; spot.style.transform = 'scale(1)';
+      spot.style.left = `${Math.round(left)}px`; spot.style.top = `${Math.round(top)}px`; spot.style.width = `${Math.round(w)}px`; spot.style.height = `${Math.round(h)}px`; spot.style.transform = 'scale(1)';
     } else {
       // animate overlay and spot with GSAP
       try{ gsap.killTweensOf(ov); gsap.killTweensOf(spot); }catch(e){}
       try{ gsap.to(ov, {duration:0.28, opacity:1, ease:'power2.out', onStart: ()=>ov.classList.add('visible')}); }catch(e){}
-      try{ gsap.fromTo(spot, {left: left-8, top: top-8, width: w+16, height: h+16, scale:1.06, opacity:0.95}, {left, top, width: w, height: h, scale:1, opacity:1, duration:0.48, ease:'power3.out'}); }catch(e){}
+      try{ gsap.fromTo(spot, {left: Math.round(left)-8, top: Math.round(top)-8, width: Math.round(w)+16, height: Math.round(h)+16, scale:1.06, opacity:0.95}, {left: Math.round(left), top: Math.round(top), width: Math.round(w), height: Math.round(h), scale:1, opacity:1, duration:0.48, ease:'power3.out'}); }catch(e){}
     }
 
     // Position and show label (if provided)
@@ -1368,11 +1390,28 @@ function showSpotFor(node, labelText){
           const preferredTop = top - lr.height - 12;
           let labelTop = preferredTop;
           let arrowBelow = false;
-          if(preferredTop < 6){ labelTop = top + h + 12; arrowBelow = true; }
+          // If preferredTop overlaps header or is off-screen, place below
+          if(preferredTop < (margin + headerH + 6)){
+            labelTop = top + h + 12;
+            arrowBelow = true;
+          }
+          // If below placement extends beyond viewport bottom, try placing above even if preferred top was small
+          if((labelTop + lr.height) > (vh - footerH - margin)){
+            labelTop = Math.max(margin + headerH, top - lr.height - 12);
+            arrowBelow = false;
+          }
           let labelLeft = left + (w/2) - (lr.width/2);
           // clamp within viewport
-          const pad = 8;
-          labelLeft = Math.max(pad, Math.min(labelLeft, window.innerWidth - lr.width - pad));
+          const pad = margin;
+          labelLeft = Math.max(pad, Math.min(labelLeft, vw - lr.width - pad));
+          // ensure label doesn't overlap the spot vertically; if it would, nudge it
+          if(!arrowBelow && (labelTop + lr.height) > top && (labelTop < top + h)){
+            labelTop = top - lr.height - 12; // force above
+            arrowBelow = false;
+          }
+          if(arrowBelow && labelTop < top + h){
+            labelTop = top + h + 12;
+          }
           // apply
           label.style.left = `${Math.round(labelLeft)}px`;
           label.style.top = `${Math.round(labelTop)}px`;

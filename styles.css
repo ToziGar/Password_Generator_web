@@ -120,3 +120,8 @@ input[type=range]{width:100%}
 .toast.info{border-left:4px solid #60a5fa}
 .toast.warn{border-left:4px solid #ffd36b}
 .toast.error{border-left:4px solid #ff7a7a}
+
+/* Blocking overlay for long-running operations */
+#blockingOverlay{position:fixed;inset:0;background:rgba(2,6,23,0.75);display:flex;align-items:center;justify-content:center;z-index:200;pointer-events:auto}
+#blockingOverlay .overlay-content{display:flex;flex-direction:column;align-items:center;gap:12px;padding:18px;border-radius:12px}
+.spinner{width:44px;height:44px;border-radius:50%;border:4px solid rgba(255,255,255,0.08);border-top-color:var(--accent);animation:spin 900ms linear infinite}

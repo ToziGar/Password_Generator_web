@@ -880,11 +880,13 @@ function showMasterModal(promptText, placeholder, opts = {}){
     // show/hide confirm field depending on opts
     if(opts.requireConfirm){ if(confirmWrap) confirmWrap.style.display = 'block'; } else { if(confirmWrap) confirmWrap.style.display = 'none'; }
 
-    // show modal and hide main content from assistive tech
-    modal.style.display = 'flex';
-    try{ if(main) main.setAttribute('aria-hidden','true'); }catch(e){}
-    // focus first element
-    setTimeout(()=>{ try{ input.focus(); }catch(e){} }, 50);
+  // remember opener to restore focus later
+  const opener = document.activeElement;
+  // show modal and hide main content from assistive tech
+  modal.style.display = 'flex';
+  try{ if(main) main.setAttribute('aria-hidden','true'); }catch(e){}
+  // focus first element
+  setTimeout(()=>{ try{ input.focus(); }catch(e){} }, 50);
 
     // focus trap: collect focusable elements inside modal
     const focusableSelector = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
@@ -903,6 +905,8 @@ function showMasterModal(promptText, placeholder, opts = {}){
       document.removeEventListener('keydown', onKey);
       modal.removeEventListener('keydown', onModalKeydown);
       clearMasterError();
+      // restore focus to opener when possible
+      try{ if(opener && typeof opener.focus === 'function') opener.focus(); }catch(e){}
       resolve(val);
     };
 
@@ -949,6 +953,8 @@ function showConfirmModal(message, title = 'Confirmación'){
     const main = document.querySelector('main.container');
     if(label) label.textContent = title;
     if(body) body.textContent = message;
+    // remember opener to restore focus later
+    const opener = document.activeElement;
     // show modal and hide main from assistive tech
     modal.style.display = 'flex';
     try{ if(main) main.setAttribute('aria-hidden','true'); }catch(e){}
@@ -965,6 +971,8 @@ function showConfirmModal(message, title = 'Confirmación'){
       cancelBtn.removeEventListener('click', onCancel);
       document.removeEventListener('keydown', onKey);
       modal.removeEventListener('keydown', onModalKeydown);
+      // restore focus
+      try{ if(opener && typeof opener.focus === 'function') opener.focus(); }catch(e){}
       resolve(val);
     };
 
@@ -1018,7 +1026,17 @@ if(exportBtn){
   if(!master){ showToast('Cancelado. Se requiere una contraseña maestra para cifrar.', 'warn'); return; }
   statusEl.textContent = 'PGW: cifrando backup...';
   const iters = (kdfIterations && Number(kdfIterations.value)) || 200000;
-  const exported = await encryptBackupObject(payload, master, iters);
+  // If KDF is expected to be long, show blocking overlay
+  try{
+    const seconds = await estimateKdfEta(iters);
+    if(seconds && seconds > 5){ showBlockingOverlay(`Cifrando backup — esto puede tardar ${formatDuration(seconds)}`); }
+  }catch(e){ /* ignore ETA errors */ }
+  let exported;
+  try{
+    exported = await encryptBackupObject(payload, master, iters);
+  }finally{
+    hideBlockingOverlay();
+  }
       const blob = new Blob([JSON.stringify(exported, null, 2)], {type:'application/json'});
       const name = `pgw-backup-${(new Date()).toISOString().slice(0,19).replace(/[:T]/g,'-')}.json`;
       const url = URL.createObjectURL(blob);
@@ -1039,7 +1057,17 @@ if(importBtn && importFile){
   const master = await showMasterModal('Introduce la contraseña maestra usada para cifrar este backup:');
   if(!master){ showToast('Importación cancelada. Se requiere la contraseña maestra.', 'warn'); return; }
       statusEl.textContent = 'PGW: descifrando backup...';
-      const obj = await decryptBackupObject(parsed, master);
+      // If the backup declares iterations, estimate decrypt time and show overlay if long
+      try{
+        const iters = parsed && parsed.iterations ? Number(parsed.iterations) : null;
+        if(iters){ const seconds = await estimateKdfEta(iters); if(seconds && seconds > 5) showBlockingOverlay(`Descifrando backup — esto puede tardar ${formatDuration(seconds)}`); }
+      }catch(e){ /* ignore ETA errors */ }
+      let obj;
+      try{
+        obj = await decryptBackupObject(parsed, master);
+      }finally{
+        hideBlockingOverlay();
+      }
   // Ask user before loading into UI to avoid unintended overwrites (accessible confirm)
   const want = await showConfirmModal('Backup descifrado correctamente. Contiene contraseña y opciones. ¿Desea cargar la contraseña en la interfaz ahora? (Se sobrescribirá el campo actual)');
   if(want){
@@ -1122,4 +1150,18 @@ function showToast(msg, type='info', timeout=5000){
   // fade in
   requestAnimationFrame(()=>{ t.style.transition = 'opacity 240ms ease'; t.style.opacity = '1'; });
   setTimeout(()=>{ try{ t.style.opacity = '0'; setTimeout(()=>t.remove(),300); }catch(e){} }, timeout);
+}
+
+// Blocking overlay controls for long operations
+function showBlockingOverlay(message){
+  const ov = el('blockingOverlay');
+  const msg = el('overlayMessage');
+  if(!ov) return;
+  if(msg) msg.textContent = message || 'Procesando...';
+  ov.style.display = 'flex';
+}
+function hideBlockingOverlay(){
+  const ov = el('blockingOverlay');
+  if(!ov) return;
+  ov.style.display = 'none';
 }

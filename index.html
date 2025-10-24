@@ -140,5 +140,12 @@
         </div>
       </div>
       <script src="script.js"></script>
+      <!-- Blocking overlay shown during long KDF ops (hidden by default) -->
+      <div id="blockingOverlay" style="display:none" aria-hidden="true">
+        <div class="overlay-content">
+          <div class="spinner" aria-hidden="true"></div>
+          <div id="overlayMessage" class="muted" style="margin-top:8px;color:var(--text)">Procesando...</div>
+        </div>
+      </div>
     </body>
   </html>

@@ -52,6 +52,8 @@ const passwordInput = el('password');
 const rateSelect = el('rateSelect');
 const customRate = el('customRate');
 const crackEstimatesEl = el('crackEstimates');
+const kdfIterations = el('kdfIterations');
+const kdfEta = el('kdfEta');
 
 // Opciones
 const SYMBOLS = "!@#$%^&*()_+[]{}<>?,.;:-=_~";
@@ -808,10 +810,10 @@ async function deriveAesKey(masterPass, saltBase64, iterations=200000){
   }
 }
 
-async function encryptBackupObject(obj, masterPass){
+async function encryptBackupObject(obj, masterPass, iterations = 200000){
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const iv = crypto.getRandomValues(new Uint8Array(12));
-  const key = await deriveAesKey(masterPass, arrayBufferToBase64(salt.buffer), 200000);
+  const key = await deriveAesKey(masterPass, arrayBufferToBase64(salt.buffer), iterations);
   const enc = new TextEncoder();
   const plain = enc.encode(JSON.stringify(obj));
   const cipher = await crypto.subtle.encrypt({name:'AES-GCM', iv}, key, plain);
@@ -819,7 +821,7 @@ async function encryptBackupObject(obj, masterPass){
     version: 1,
     kdf: 'pbkdf2',
     salt: arrayBufferToBase64(salt.buffer),
-    iterations: 200000,
+    iterations: iterations,
     iv: arrayBufferToBase64(iv.buffer),
     ciphertext: arrayBufferToBase64(cipher)
   };
@@ -850,7 +852,8 @@ function ensureMasterModalElements(){
   };
 }
 
-function showMasterModal(promptText, placeholder){
+function showMasterModal(promptText, placeholder, opts = {}){
+  // opts: { requireConfirm: boolean }
   return new Promise((resolve)=>{
     const elems = ensureMasterModalElements();
     if(!elems){
@@ -860,27 +863,67 @@ function showMasterModal(promptText, placeholder){
       return;
     }
     const {modal, header, body, input, confirmBtn, cancelBtn} = elems;
+    const confirmWrap = el('masterConfirmWrap');
+    const confirmInput = el('masterInputConfirm');
+    const main = document.querySelector('main.container');
     try{ if(header) header.textContent = 'Contraseña maestra'; }catch(e){}
     try{ if(body) body.textContent = promptText || 'Introduce la contraseña maestra.'; }catch(e){}
     input.value = '';
+    if(confirmInput) confirmInput.value = '';
     input.placeholder = placeholder || '';
+    // show/hide confirm field depending on opts
+    if(opts.requireConfirm){ if(confirmWrap) confirmWrap.style.display = 'block'; } else { if(confirmWrap) confirmWrap.style.display = 'none'; }
+
+    // show modal and hide main content from assistive tech
     modal.style.display = 'flex';
-    // small timeout to ensure it's visible before focus
+    try{ if(main) main.setAttribute('aria-hidden','true'); }catch(e){}
+    // focus first element
     setTimeout(()=>{ try{ input.focus(); }catch(e){} }, 50);
+
+    // focus trap: collect focusable elements inside modal
+    const focusableSelector = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+    const focusable = Array.from(modal.querySelectorAll(focusableSelector)).filter(elm => !elm.hasAttribute('disabled'));
+    let firstFocusable = focusable[0];
+    let lastFocusable = focusable[focusable.length-1];
 
     const cleanup = (val)=>{
       try{ modal.style.display = 'none'; }catch(e){}
+      try{ if(main) main.removeAttribute('aria-hidden'); }catch(e){}
       confirmBtn.removeEventListener('click', onConfirm);
       cancelBtn.removeEventListener('click', onCancel);
       document.removeEventListener('keydown', onKey);
+      modal.removeEventListener('keydown', onModalKeydown);
       resolve(val);
     };
-    const onConfirm = ()=> cleanup(input.value || null);
+
+    const onConfirm = ()=>{
+      const val = input.value || null;
+      if(opts.requireConfirm && confirmInput){
+        if(val === null || val === ''){ alert('La contraseña maestra no puede estar vacía.'); return; }
+        if(confirmInput.value !== val){ alert('Las contraseñas no coinciden. Por favor, repite la contraseña.'); confirmInput.focus(); return; }
+      }
+      cleanup(val);
+    };
     const onCancel = ()=> cleanup(null);
-    const onKey = (e)=>{ if(e.key === 'Enter') onConfirm(); if(e.key === 'Escape') onCancel(); };
+
+    const onKey = (e)=>{ if(e.key === 'Escape') onCancel(); };
+    const onModalKeydown = (e)=>{
+      if(e.key !== 'Tab') return;
+      // manage tab cycling
+      if(focusable.length === 0) return;
+      const idx = focusable.indexOf(document.activeElement);
+      if(e.shiftKey){
+        // shift+tab
+        if(document.activeElement === firstFocusable || idx === -1) { e.preventDefault(); lastFocusable.focus(); }
+      } else {
+        if(document.activeElement === lastFocusable || idx === -1) { e.preventDefault(); firstFocusable.focus(); }
+      }
+    };
+
     confirmBtn.addEventListener('click', onConfirm);
     cancelBtn.addEventListener('click', onCancel);
     document.addEventListener('keydown', onKey);
+    modal.addEventListener('keydown', onModalKeydown);
   });
 }
 
@@ -910,10 +953,11 @@ if(exportBtn){
           seed: el('seedInput')?el('seedInput').value:''
         }
       };
-  const master = await showMasterModal('Introduce una contraseña maestra para cifrar el backup (no se guardará).');
+  const master = await showMasterModal('Introduce una contraseña maestra para cifrar el backup (no se guardará).', '', { requireConfirm: true });
   if(!master){ alert('Cancelado. Se requiere una contraseña maestra para cifrar.'); return; }
-      statusEl.textContent = 'PGW: cifrando backup...';
-      const exported = await encryptBackupObject(payload, master);
+  statusEl.textContent = 'PGW: cifrando backup...';
+  const iters = (kdfIterations && Number(kdfIterations.value)) || 200000;
+  const exported = await encryptBackupObject(payload, master, iters);
       const blob = new Blob([JSON.stringify(exported, null, 2)], {type:'application/json'});
       const name = `pgw-backup-${(new Date()).toISOString().slice(0,19).replace(/[:T]/g,'-')}.json`;
       const url = URL.createObjectURL(blob);
@@ -957,4 +1001,47 @@ if(importBtn && importFile){
     // Reset file input
     importFile.value = '';
   });
+}
+
+// KDF benchmark cache and ETA estimation
+const kdfBenchmark = { msPerIteration: null, sampleIterations: 2000 };
+async function measureKdfSample(){
+  if(kdfBenchmark.msPerIteration) return kdfBenchmark.msPerIteration;
+  const sample = kdfBenchmark.sampleIterations;
+  try{
+    const t0 = performance.now();
+    await workerRequest('pbkdf2', { password: 'benchmark-pgw', salt: 'bench', iterations: sample, length: 32 });
+    const t1 = performance.now();
+    kdfBenchmark.msPerIteration = (t1 - t0) / sample;
+    return kdfBenchmark.msPerIteration;
+  }catch(e){
+    // fallback using subtle deriveBits (slower but available)
+    try{
+      const enc = new TextEncoder();
+      const baseKey = await crypto.subtle.importKey('raw', enc.encode('benchmark-pgw'), {name:'PBKDF2'}, false, ['deriveBits']);
+      const t0 = performance.now();
+      await crypto.subtle.deriveBits({name:'PBKDF2', salt: enc.encode('bench'), iterations: sample, hash:'SHA-256'}, baseKey, 256);
+      const t1 = performance.now();
+      kdfBenchmark.msPerIteration = (t1 - t0) / sample;
+      return kdfBenchmark.msPerIteration;
+    }catch(err){
+      console.warn('No se pudo medir KDF sample:', err);
+      kdfBenchmark.msPerIteration = null;
+      return null;
+    }
+  }
+}
+
+async function estimateKdfEta(iterations){
+  if(!kdfEta) return null;
+  kdfEta.textContent = 'ETA estimada: calculando...';
+  const msPer = await measureKdfSample();
+  if(!msPer){ kdfEta.textContent = 'ETA estimada: N/A'; return null; }
+  const seconds = (msPer * iterations) / 1000;
+  kdfEta.textContent = `ETA estimada: ${formatDuration(seconds)}`;
+  return seconds;
+}
+
+if(kdfIterations){
+  kdfIterations.addEventListener('change', async ()=>{ try{ await estimateKdfEta(Number(kdfIterations.value)); }catch(e){console.error(e);} });
 }

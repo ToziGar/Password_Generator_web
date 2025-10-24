@@ -40,6 +40,17 @@
           <button id="exportBtn" class="btn">Exportar (.json cifrado)</button>
           <button id="importBtn" class="btn">Importar (.json cifrado)</button>
         </div>
+        <div class="row" style="margin-top:8px;align-items:center;gap:8px">
+          <label for="kdfIterations">Iteraciones KDF:</label>
+          <select id="kdfIterations" style="width:160px;padding:6px 8px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:transparent;color:var(--text)">
+            <option value="50000">50,000</option>
+            <option value="100000">100,000</option>
+            <option value="200000" selected>200,000 (recomendado)</option>
+            <option value="400000">400,000</option>
+            <option value="800000">800,000</option>
+          </select>
+          <div id="kdfEta" class="muted small" aria-live="polite">ETA estimada: —</div>
+        </div>
         <div class="row" style="margin-top:8px;gap:8px;align-items:center">
           <label><input id="deterministic" type="checkbox"> Generador determinista (semilla)</label>
           <input id="seedInput" type="text" placeholder="Introduce semilla para reproducir" style="flex:1">

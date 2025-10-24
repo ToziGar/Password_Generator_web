@@ -37,6 +37,8 @@
           <button id="generate" class="btn primary">Generar</button>
           <button id="regenerate" class="btn">Regenerar</button>
           <button id="copy" class="btn">Copiar</button>
+          <button id="exportBtn" class="btn">Exportar (.json cifrado)</button>
+          <button id="importBtn" class="btn">Importar (.json cifrado)</button>
         </div>
         <div class="row" style="margin-top:8px;gap:8px;align-items:center">
           <label><input id="deterministic" type="checkbox"> Generador determinista (semilla)</label>
@@ -82,6 +84,9 @@
               <button id="hibpCheck" class="btn">Comprobar ahora</button>
               <label style="margin-left:8px;color:var(--muted)">Modo hardcore: <input id="hardcore" type="checkbox"></label>
             </div>
+            <!-- Hidden file input for importing encrypted backups -->
+            <input id="importFile" type="file" accept=".json" style="display:none">
+            
             <div id="calcSource" class="muted" style="margin-top:8px">Fuente: ajustes</div>
             <div id="breakdown" style="margin-top:8px;color:var(--muted);display:none"></div>
         </div>

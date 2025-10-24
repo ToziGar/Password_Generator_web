@@ -752,15 +752,161 @@ if(evalCustom){
     }catch(e){/* ignore if element missing */}
     // focus the manual field so user can edit if needed
     try{ customPw.focus(); }catch(e){}
+    setLoading(true,'Analizando...');
     try{ await render(); }catch(e){ console.error('Error en render desde evalCustom', e); }
+    finally{ setLoading(false); }
   });
 }
 if(useCustom){
   useCustom.addEventListener('change', async ()=>{
     // when unchecked, make password input readonly and regenerate from settings
     passwordInput.readOnly = !useCustom.checked;
-    if(!useCustom.checked){ try{ await render(); }catch(e){ console.error('Error en render desde useCustom change', e); } }
+    if(!useCustom.checked){ setLoading(true,'Generando...'); try{ await render(); }catch(e){ console.error('Error en render desde useCustom change', e); } finally{ setLoading(false); } }
   });
   // start with password input readonly
   passwordInput.readOnly = true;
+}
+
+// --- Export / Import cifrado (AES-GCM con clave derivada por PBKDF2 en worker) ---
+function arrayBufferToBase64(buf){
+  const bytes = new Uint8Array(buf);
+  let chunk = 0;
+  const chunkSize = 0x8000; // evitar apply con arrays grandes
+  let str = '';
+  while(chunk * chunkSize < bytes.length){
+    const sub = bytes.subarray(chunk*chunkSize, (chunk+1)*chunkSize);
+    str += String.fromCharCode.apply(null, sub);
+    chunk++;
+  }
+  return btoa(str);
+}
+function base64ToUint8Array(b64){
+  const bin = atob(b64);
+  const u = new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) u[i] = bin.charCodeAt(i);
+  return u;
+}
+
+async function deriveAesKey(masterPass, saltBase64, iterations=200000){
+  const salt = base64ToUint8Array(saltBase64);
+  // Use worker PBKDF2 to derive 32 bytes (256 bits)
+  try{
+    const saltStr = arrayBufferToBase64(salt.buffer); // worker pbkdf2 expects salt as string in our worker (it encodes it again)
+    const outBuf = await workerRequest('pbkdf2', { password: masterPass, salt: saltStr, iterations: iterations, length: 32 });
+    const keyBytes = new Uint8Array(outBuf);
+    const key = await crypto.subtle.importKey('raw', keyBytes, { name: 'AES-GCM' }, false, ['encrypt','decrypt']);
+    return key;
+  }catch(e){
+    // Fallback: try SubtleCrypto deriveBits (if worker not available)
+    try{
+      const enc = new TextEncoder();
+      const baseKey = await crypto.subtle.importKey('raw', enc.encode(masterPass), {name:'PBKDF2'}, false, ['deriveBits']);
+      const derived = await crypto.subtle.deriveBits({name:'PBKDF2', salt, iterations, hash:'SHA-256'}, baseKey, 256);
+      const key = await crypto.subtle.importKey('raw', derived, {name:'AES-GCM'}, false, ['encrypt','decrypt']);
+      return key;
+    }catch(err){ throw new Error('No se pudo derivar la clave: '+err.message); }
+  }
+}
+
+async function encryptBackupObject(obj, masterPass){
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const key = await deriveAesKey(masterPass, arrayBufferToBase64(salt.buffer), 200000);
+  const enc = new TextEncoder();
+  const plain = enc.encode(JSON.stringify(obj));
+  const cipher = await crypto.subtle.encrypt({name:'AES-GCM', iv}, key, plain);
+  return {
+    version: 1,
+    kdf: 'pbkdf2',
+    salt: arrayBufferToBase64(salt.buffer),
+    iterations: 200000,
+    iv: arrayBufferToBase64(iv.buffer),
+    ciphertext: arrayBufferToBase64(cipher)
+  };
+}
+
+async function decryptBackupObject(blobObj, masterPass){
+  if(!blobObj || !blobObj.salt || !blobObj.iv || !blobObj.ciphertext) throw new Error('Formato de backup incorrecto');
+  const key = await deriveAesKey(masterPass, blobObj.salt, blobObj.iterations || 200000);
+  const iv = base64ToUint8Array(blobObj.iv);
+  const cipher = base64ToUint8Array(blobObj.ciphertext);
+  const plainBuf = await crypto.subtle.decrypt({name:'AES-GCM', iv}, key, cipher);
+  const dec = new TextDecoder();
+  const json = dec.decode(plainBuf);
+  return JSON.parse(json);
+}
+
+// Wire buttons
+const exportBtn = el('exportBtn');
+const importBtn = el('importBtn');
+const importFile = el('importFile');
+
+if(exportBtn){
+  exportBtn.addEventListener('click', async ()=>{
+    try{
+      const pw = passwordInput.value || '';
+      if(!pw){ alert('No hay contraseña generada para exportar'); return; }
+      // Build object to export (do not include unnecessary logs)
+      const payload = {
+        createdAt: (new Date()).toISOString(),
+        password: pw,
+        options: {
+          length: lengthEl.value,
+          lower: lower.checked,
+          upper: upper.checked,
+          numbers: numbers.checked,
+          symbols: symbols.checked,
+          passphrase: passphrase.checked,
+          words: words.value,
+          deterministic: el('deterministic')?el('deterministic').checked:false,
+          seed: el('seedInput')?el('seedInput').value:''
+        }
+      };
+      const master = prompt('Introduce una contraseña maestra para cifrar el backup (no se guardará).');
+      if(!master){ alert('Cancelado. Se requiere una contraseña maestra para cifrar.'); return; }
+      statusEl.textContent = 'PGW: cifrando backup...';
+      const exported = await encryptBackupObject(payload, master);
+      const blob = new Blob([JSON.stringify(exported, null, 2)], {type:'application/json'});
+      const name = `pgw-backup-${(new Date()).toISOString().slice(0,19).replace(/[:T]/g,'-')}.json`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+      statusEl.textContent = 'PGW: backup descargado (cifrado)';
+    }catch(e){ console.error('Export error:', e); alert('Error al exportar: '+(e.message||e)); statusEl.textContent = 'PGW: error export'; }
+  });
+}
+
+if(importBtn && importFile){
+  importBtn.addEventListener('click', ()=> importFile.click());
+  importFile.addEventListener('change', async (ev)=>{
+    const f = ev.target.files && ev.target.files[0];
+    if(!f) return;
+    try{
+      const txt = await f.text();
+      const parsed = JSON.parse(txt);
+      const master = prompt('Introduce la contraseña maestra usada para cifrar este backup:');
+      if(!master){ alert('Importación cancelada. Se requiere la contraseña maestra.'); return; }
+      statusEl.textContent = 'PGW: descifrando backup...';
+      const obj = await decryptBackupObject(parsed, master);
+      // Ask user before loading into UI to avoid unintended overwrites
+      const want = confirm('Backup descifrado correctamente. Contiene contraseña y opciones. ¿Desea cargar la contraseña en la interfaz ahora? (Se sobrescribirá el campo actual)');
+      if(want){
+        try{ passwordInput.value = obj.password || ''; useCustom.checked = true; passwordInput.readOnly = false; }catch(e){}
+        try{
+          if(obj.options){
+            lengthEl.value = obj.options.length || lengthEl.value;
+            lower.checked = !!obj.options.lower; upper.checked = !!obj.options.upper; numbers.checked = !!obj.options.numbers; symbols.checked = !!obj.options.symbols;
+            passphrase.checked = !!obj.options.passphrase; words.value = obj.options.words || words.value;
+            if(el('deterministic')) el('deterministic').checked = !!obj.options.deterministic;
+            if(el('seedInput')) el('seedInput').value = obj.options.seed || '';
+            updateUI();
+          }
+        }catch(e){/* ignore UI set errors */}
+        statusEl.textContent = 'PGW: backup cargado (local)';
+      } else {
+        statusEl.textContent = 'PGW: backup descifrado (no cargado)';
+      }
+    }catch(e){ console.error('Import error:', e); alert('Error al importar/descifrar: ' + (e.message||e)); statusEl.textContent = 'PGW: error import'; }
+    // Reset file input
+    importFile.value = '';
+  });
 }

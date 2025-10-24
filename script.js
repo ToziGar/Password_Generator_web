@@ -1,4 +1,5 @@
 // Generador y evaluador de contraseñas (todo en español)
+console.log('script.js cargado');
 const el = id => document.getElementById(id);
 
 // Elementos
@@ -294,13 +295,16 @@ function render(){
     numbers: numbers.checked,
     symbols: symbols.checked
   };
-  // Decide source: custom content or generated/options
+  // Decide source: if the user explicitly enabled manual evaluation and provided a value,
+  // we must NOT overwrite/clear their manual field when regenerating. Respect manual input.
   let source = 'ajustes';
-  let pw = generatePassword();
-  passwordInput.value = pw;
+  let pw = '';
   let entropy;
   let reason = 'basado en ajustes';
-  if(useCustom.checked && customPw.value.trim().length>0){
+
+  const hasManual = useCustom && useCustom.checked && customPw && customPw.value && customPw.value.trim().length > 0;
+  if(hasManual){
+    // Use the provided manual password for analysis and do not touch the manual input field.
     pw = customPw.value.trim();
     passwordInput.value = pw;
     const analysis = analyzePassword(pw);
@@ -308,6 +312,9 @@ function render(){
     reason = analysis.reason;
     source = 'contenido';
   } else {
+    // Generate a password from the current options and show it in the output field.
+    pw = generatePassword();
+    passwordInput.value = pw;
     entropy = calculateEntropy(pw, opts);
   }
   const entRounded = Math.round(entropy);
@@ -413,6 +420,8 @@ lengthEl.addEventListener('input', updateUI);
 words.addEventListener('input', updateUI);
 passphrase.addEventListener('change', updateUI);
 generateBtn.addEventListener('click', ()=>{ render(); });
+// Fallback: también exponemos un onclick directo por si algo impide el listener estándar
+if(generateBtn) generateBtn.onclick = () => { try{ render(); } catch(e){ console.error('Error en render desde onclick fallback', e); } };
 regenerateBtn.addEventListener('click', ()=>{ render(); });
 copyBtn.addEventListener('click', ()=>{
   navigator.clipboard.writeText(passwordOut.value).then(()=>{
@@ -438,6 +447,13 @@ if(evalCustom){
     // copy customPw into password input for clarity
     if(customPw.value && customPw.value.trim().length>0) passwordInput.value = customPw.value.trim();
     passwordInput.readOnly = false;
+    // Brief visual feedback: pulso en el botón
+    try{
+      evalCustom.classList.add('pulse');
+      setTimeout(()=>{ evalCustom.classList.remove('pulse'); }, 900);
+    }catch(e){/* ignore if element missing */}
+    // focus the manual field so user can edit if needed
+    try{ customPw.focus(); }catch(e){}
     render();
   });
 }

@@ -21,3 +21,9 @@ Indicadores:
 
 Limitaciones:
 - Estimaciones orientativas; para auditorías reales usa herramientas especializadas.
+
+Nuevas funciones:
+- Passphrases reales: si `wordlist.txt` está disponible, las passphrases se generan a partir de esa lista (mejor memorizables y con entropía calculada correctamente).
+- Estimaciones: puedes elegir entre varias tasas de ataque (Online, Botnets, GPU cluster, Super cluster) o introducir una tasa personalizada; la UI mostrará varias estimaciones simultáneas.
+- Frases graciosas: se muestran frases aleatorias para dar feedback; la implementación evita repetir frases hasta agotar la lista.
+- Animaciones: medidor animado, animación al copiar y confetti si la contraseña tiene entropía >= 128 bits.

@@ -20,6 +20,9 @@ const strengthLabel = el('strengthLabel');
 const entropyLabel = el('entropyLabel');
 const crackTimeEl = el('crackTime');
 const funnyEl = el('funny');
+const rateSelect = el('rateSelect');
+const customRate = el('customRate');
+const crackEstimatesEl = el('crackEstimates');
 
 // Opciones
 const SYMBOLS = "!@#$%^&*()_+[]{}<>?,.;:-=_~";
@@ -27,7 +30,24 @@ const LOWER = 'abcdefghijklmnopqrstuvwxyz';
 const UPPER = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 const DIGITS = '0123456789';
 // Para frases usamos un pool aproximado (simulamos lista de palabras)
-const WORD_POOL = 2048; // tamaño típico usado en listas de palabras
+const WORD_POOL = 2048; // tamaño típico usado en listas de palabras (fallback)
+let wordList = null; // se cargará desde wordlist.txt si está disponible
+
+// Cargar wordlist local (async). Si falla, quedará null y usaremos fakeWord
+fetch('wordlist.txt').then(r=>{
+  if(!r.ok) throw new Error('no local');
+  return r.text();
+}).then(txt=>{
+  const lines = txt.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+  if(lines.length>0){ wordList = lines; console.log('Wordlist cargada, palabras:', lines.length); }
+}).catch(err=>{
+  console.warn('No se pudo cargar wordlist local:', err);
+  // Intentamos cargar BIP39 como fallback remoto (opcional)
+  fetch('https://raw.githubusercontent.com/bitcoin/bips/master/bip-0039/english.txt').then(r=>r.text()).then(t=>{
+    const lines = t.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+    if(lines.length>0){ wordList = lines; console.log('Wordlist remota cargada, palabras:', lines.length); }
+  }).catch(()=>{/* ignore */});
+});
 
 // Frases graciosas adicionales (seleccionadas aleatoriamente)
 const FUNNY_PHRASES = [
@@ -55,6 +75,22 @@ const IMPOSSIBLE_PHRASES = [
   'Esta es la definición de "prácticamente imposible" — felicidades, maestro/a.'
 ];
 
+// Para evitar repeticiones hasta agotar la lista
+let availableFunny = FUNNY_PHRASES.slice();
+let availableImpossible = IMPOSSIBLE_PHRASES.slice();
+
+function pickFunny(){
+  if(availableFunny.length===0) availableFunny = FUNNY_PHRASES.slice();
+  const i = Math.floor(Math.random()*availableFunny.length);
+  return availableFunny.splice(i,1)[0];
+}
+
+function pickImpossible(){
+  if(availableImpossible.length===0) availableImpossible = IMPOSSIBLE_PHRASES.slice();
+  const i = Math.floor(Math.random()*availableImpossible.length);
+  return availableImpossible.splice(i,1)[0];
+}
+
 function updateUI(){
   lengthVal.textContent = lengthEl.value;
   wordsVal.textContent = words.value;
@@ -64,7 +100,13 @@ function updateUI(){
 
 function generatePassword(){
   if(passphrase.checked){
-    // Generar frase simple: combinamos palabras ficticias
+    // Generar passphrase usando wordList si está disponible
+    if(wordList && wordList.length>0){
+      const pw = [];
+      for(let i=0;i<words.value;i++) pw.push(randomFrom(wordList));
+      return pw.join(' ');
+    }
+    // fallback: palabras pseudoaleatorias
     const pw = [];
     for(let i=0;i<words.value;i++) pw.push(fakeWord());
     return pw.join(' ');
@@ -97,8 +139,9 @@ function capitalize(s){return s.charAt(0).toLowerCase() + s.slice(1)}
 
 function calculateEntropy(password, opts){
   if(opts.passphrase){
-    // Entropía aproximada: palabras * log2(word_pool)
-    return opts.words * Math.log2(WORD_POOL);
+    // Entropía aproximada: palabras * log2(size_of_wordlist)
+    const pool = (wordList && wordList.length) ? wordList.length : WORD_POOL;
+    return opts.words * Math.log2(pool);
   }
   let poolSize = 0;
   if(opts.lower) poolSize += 26;
@@ -117,15 +160,22 @@ function evaluateStrength(entropy){
   return {label:'Prácticamente imposible','colorPct':100};
 }
 
-function estimateCrackTime(entropy){
-  // Usamos una tasa de 10^10 intentos por segundo (alta: ataques offline GPU clusters)
-  const rate = 1e10;
+function estimateCrackTime(entropy, rate){
+  // rate: intentos por segundo
+  rate = Number(rate) || 1e10;
   // log10(seconds) = entropy*log10(2) - log10(rate)
   const log10sec = entropy * Math.LOG10E * Math.log(2) - Math.log10(rate);
   if(!isFinite(log10sec)) return {label:'Demasiado grande',seconds:Infinity};
 
   const seconds = Math.pow(10, log10sec);
   return {label:formatDuration(seconds), seconds};
+}
+
+function estimatesForRates(entropy, rates){
+  return rates.map(r=>{
+    const est = estimateCrackTime(entropy, r);
+    return {rate: r, label: est.label, seconds: est.seconds};
+  });
 }
 
 function formatDuration(seconds){
@@ -149,14 +199,14 @@ function formatDuration(seconds){
 function minutesLessThan(v, limit){ return v < limit ? v : limit }
 
 function funnyFor(seconds){
-  if(!isFinite(seconds)) return randomFrom(IMPOSSIBLE_PHRASES);
+  if(!isFinite(seconds)) return pickImpossible();
   const years = seconds/60/60/24/365.25;
-  if(years > 1e9) return randomFrom(IMPOSSIBLE_PHRASES);
+  if(years > 1e9) return pickImpossible();
   if(years > 1e6) return 'Se tardaría tanto que podrías escribir una novela completa mientras tanto.';
   if(years > 1000) return 'Solo descifrable por arqueólogos del futuro con mucho tiempo libre.';
-  if(years > 100) return randomFrom(FUNNY_PHRASES);
+  if(years > 100) return pickFunny();
   if(years > 1) return 'Bastante robusta: un buen equilibrio entre seguridad y usabilidad.';
-  return randomFrom(FUNNY_PHRASES.concat(['Precaución: fácil de atacar en poco tiempo. Considera aumentar longitud o variedad de caracteres.']));
+  return pickFunny();
 }
 
 function randomFrom(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
@@ -183,16 +233,45 @@ function render(){
   strengthLabel.textContent = `Fuerza: ${strength.label}`;
   meterBar.style.width = `${strength.colorPct}%`;
 
-  const crack = estimateCrackTime(entropy);
-  crackTimeEl.textContent = crack.label;
-  // Mostrar frase con animación aleatoria
-  const phrase = funnyFor(crack.seconds);
+  // Mostrar estimaciones para presets y custom
+  const presets = [1e3,1e6,1e10,1e12];
+  const custom = Number(customRate.value) || Number(rateSelect.value) || 1e10;
+  const ratesToShow = presets;
+  const estimates = estimatesForRates(entropy, ratesToShow);
+  // Render estimates
+  crackEstimatesEl.innerHTML = '';
+  const container = document.createElement('div');
+  container.className = 'crack-estimate';
+  estimates.forEach(e=>{
+    const span = document.createElement('span');
+    const label = (e.rate === custom) ? `${formatRate(e.rate)} (seleccionado)` : formatRate(e.rate);
+    span.textContent = `${label}: ${e.label}`;
+    container.appendChild(span);
+  });
+  // Also show custom if it's not one of presets
+  if(!presets.includes(custom)){
+    const customEst = estimateCrackTime(entropy, custom);
+    const span = document.createElement('span');
+    span.textContent = `${formatRate(custom)} (personalizado): ${customEst.label}`;
+    container.appendChild(span);
+  }
+  crackEstimatesEl.appendChild(container);
+
+  // Choose a phrase based on the most conservative estimate (custom)
+  const chosen = estimateCrackTime(entropy, custom);
+  const phrase = funnyFor(chosen.seconds);
   showFunnyPhrase(phrase);
 
   // Si la contraseña es extremadamente fuerte, lanzamos confetti
-  if(entropy >= 128){
-    launchConfetti();
-  }
+  if(entropy >= 128){ launchConfetti(); }
+}
+
+function formatRate(r){
+  if(r>=1e12) return `${r.toExponential()} ops/s`;
+  if(r>=1e9) return `${(r/1e9).toFixed(1)}e9 ops/s`;
+  if(r>=1e6) return `${(r/1e6).toFixed(1)}e6 ops/s`;
+  if(r>=1e3) return `${(r/1e3).toFixed(1)}e3 ops/s`;
+  return `${r} ops/s`;
 }
 
 function showFunnyPhrase(text){
@@ -263,9 +342,16 @@ regenerateBtn.addEventListener('click', ()=>{ render(); });
 copyBtn.addEventListener('click', ()=>{
   navigator.clipboard.writeText(passwordOut.value).then(()=>{
     copyBtn.textContent = '¡Copiado!';
+    // animación del campo
+    passwordOut.classList.add('flash');
+    setTimeout(()=>passwordOut.classList.remove('flash'),700);
     setTimeout(()=>copyBtn.textContent = 'Copiar',1200);
   });
 });
+
+// reaccionar a cambios en tasa seleccionada
+if(rateSelect) rateSelect.addEventListener('change', ()=>{ customRate.value = rateSelect.value; render(); });
+if(customRate) customRate.addEventListener('input', ()=>{ render(); });
 
 // Inicializar
 updateUI(); render();

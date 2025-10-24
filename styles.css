@@ -26,6 +26,16 @@ input[type=range]{width:100%}
 .btn:hover{transform:translateY(-3px);box-shadow:0 8px 20px rgba(12,18,40,0.4)}
 .btn:active{transform:translateY(0) scale(0.99)}
 
+/* Loading state for buttons */
+.btn.loading{opacity:0.9;pointer-events:none;transform:none}
+.btn.loading::after{
+  content:'';
+  display:inline-block;
+  width:14px;height:14px;margin-left:8px;border-radius:50%;
+  border:2px solid rgba(255,255,255,0.2);border-top-color:white;animation:spin 800ms linear infinite;vertical-align:middle;
+}
+@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+
 /* Estilo específico para el botón Evaluar (id=evalCustom) */
 #evalCustom{
   background: linear-gradient(90deg,var(--accent-2),var(--accent));

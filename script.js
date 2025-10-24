@@ -129,7 +129,8 @@ function updateUI(){
   el('wordsLabel').style.opacity = passphrase.checked ? '1' : '0.6';
 }
 
-function generatePassword(){
+// Async password generator. Uses worker-backed deterministic DRBG when deterministic mode is selected.
+async function generatePassword(){
   if(passphrase.checked){
     // Generar passphrase usando wordList si está disponible
     if(wordList && wordList.length>0){
@@ -151,10 +152,46 @@ function generatePassword(){
   if(!pool) pool = LOWER; // fallback
 
   const length = parseInt(lengthEl.value,10);
-  let out = '';
-  const get = () => pool[secureRandomInt(pool.length)];
-  for(let i=0;i<length;i++) out += get();
-  return out;
+  const outArr = [];
+  const deterministicChecked = el('deterministic') && el('deterministic').checked;
+  const seedValue = el('seedInput') ? el('seedInput').value : '';
+  if(deterministicChecked && seedValue && seedValue.trim().length>0){
+    // Use worker-backed deterministicBytes to get cryptographically secure bytes.
+    // For passphrase mode, map 4 bytes -> uint32 index into wordList when available.
+    const bytes = await deterministicBytes(seedValue, passphrase.checked ? (words.value*4) : length);
+    if(passphrase.checked){
+      const wl = (wordList && wordList.length) ? wordList.length : 0;
+      if(wl > 0){
+        for(let i=0;i<words.value;i++){
+          const off = i*4;
+          const idx = (bytes[off] | (bytes[off+1]<<8) | (bytes[off+2]<<16) | (bytes[off+3]<<24)) >>> 0;
+          outArr.push((wordList[idx % wl]));
+        }
+        return outArr.join(' ');
+      } else {
+        // if no wordlist, fall back to fakeWord using deterministic bytes per word
+        for(let i=0;i<words.value;i++){
+          // use 4 bytes to pick syllables deterministically
+          const off = (i*4) % bytes.length;
+          const seedByte = bytes[off];
+          // simple deterministic fake word: rotate syllable choices
+          const syll = ['ba','be','bi','bo','bu','ra','re','ri','ro','ru','ta','te','ti','to','tu','sol','mar','luz','nube','casa','palo','gato','perro','luna','alto','bajo'];
+          const parts = 2 + (seedByte % 2);
+          let w = [];
+          for(let j=0;j<parts;j++) w.push(syll[(bytes[(off+j)%bytes.length] + j) % syll.length]);
+          outArr.push(capitalize(w.join('')));
+        }
+        return outArr.join(' ');
+      }
+    }
+    for(let i=0;i<length;i++){
+      const idx = bytes[i] % pool.length;
+      outArr.push(pool[idx]);
+    }
+    return outArr.join('');
+  }
+  for(let i=0;i<length;i++) outArr.push(pool[secureRandomInt(pool.length)]);
+  return outArr.join('');
 }
 
 function fakeWord(){
@@ -324,7 +361,7 @@ function secureRandomInt(max){
 
 function secureChoice(arr){ return arr[secureRandomInt(arr.length)]; }
 
-function render(){
+async function render(){
   const opts = {
     passphrase: passphrase.checked,
     words: parseInt(words.value,10),
@@ -352,7 +389,7 @@ function render(){
     source = 'contenido';
   } else {
     // Generate a password from the current options and show it in the output field.
-    pw = generatePassword();
+    pw = await generatePassword();
     passwordInput.value = pw;
     entropy = calculateEntropy(pw, opts);
   }
@@ -382,6 +419,15 @@ function render(){
   // Mostrar fuente del cálculo
   calcSource.textContent = `Fuente: ${source} (${reason})`;
 
+  // Show hardcore breakdown if enabled
+  try{
+    if(hardcore && hardcore.checked && breakdownEl){
+      const tokens = breakdownEntropyDetailed(pw);
+      breakdownEl.innerHTML = '<strong>Desglose hardcore:</strong><br>' + tokens.map(t=>`${t.token} — ${t.bits} bits (${t.cls})`).join('<br>');
+      breakdownEl.style.display = 'block';
+    } else if(breakdownEl){ breakdownEl.style.display = 'none'; }
+  }catch(e){/* ignore UI errors */}
+
   // Confetti sólo para entropía extremadamente alta
   if(entropy >= 128){ launchConfetti(); }
 }
@@ -410,6 +456,66 @@ async function sha1Hex(str){
   const hash = await crypto.subtle.digest('SHA-1', data);
   const b = new Uint8Array(hash);
   return Array.from(b).map(x=>x.toString(16).padStart(2,'0')).join('').toUpperCase();
+}
+
+// Initialize worker for heavy crypto ops
+let cryptoWorker = null;
+let workerReqId = 1;
+const workerCallbacks = new Map();
+function ensureWorker(){
+  if(cryptoWorker) return;
+  try{
+    cryptoWorker = new Worker('worker.js');
+    cryptoWorker.addEventListener('message', (ev)=>{
+      const { id, ok, result, error } = ev.data || {};
+      const cb = workerCallbacks.get(id);
+      if(cb){ workerCallbacks.delete(id); if(ok) cb.resolve(result); else cb.reject(new Error(error)); }
+    });
+  }catch(e){ console.warn('No se pudo crear worker:', e); cryptoWorker = null; }
+}
+
+function workerRequest(action, data){
+  ensureWorker();
+  if(!cryptoWorker){ return Promise.reject(new Error('Web Worker no disponible')); }
+  const id = workerReqId++;
+  return new Promise((resolve,reject)=>{
+    workerCallbacks.set(id, {resolve,reject});
+    cryptoWorker.postMessage({id, action, data});
+  });
+}
+
+// Wrapper to get SHA-1 using worker when possible (returns hex)
+async function sha1HexWorker(str){
+  try{
+    const res = await workerRequest('sha1',{str});
+    return res;
+  }catch(e){
+    return sha1Hex(str); // fallback
+  }
+}
+
+// Deterministic DRBG using worker
+async function deterministicBytes(seed, length){
+  try{
+    const buf = await workerRequest('hmacDrbg',{seed:length?seed:'', length});
+    // worker returns an ArrayBuffer
+    return new Uint8Array(buf);
+  }catch(e){
+    // fallback: derive via SHA-256 loop (less ideal)
+    const enc = new TextEncoder();
+    let out = new Uint8Array(length);
+    let pos = 0;
+    let counter = 0;
+    while(pos < length){
+      const input = enc.encode(seed + '|' + counter);
+      const h = await crypto.subtle.digest('SHA-256', input);
+      const hb = new Uint8Array(h);
+      const take = Math.min(hb.length, length - pos);
+      out.set(hb.slice(0,take), pos);
+      pos += take; counter++;
+    }
+    return out;
+  }
 }
 
 // Simple confetti implementation (canvas)
@@ -467,23 +573,39 @@ function launchConfetti(){
 lengthEl.addEventListener('input', updateUI);
 words.addEventListener('input', updateUI);
 passphrase.addEventListener('change', updateUI);
+// Loading / UI lock helper
+function setLoading(on, text){
+  try{
+    if(on){
+      generateBtn.classList.add('loading'); generateBtn.disabled = true;
+      regenerateBtn.disabled = true; copyBtn.disabled = true;
+      if(text) generateBtn.textContent = text; else generateBtn.textContent = 'Generando...';
+    } else {
+      generateBtn.classList.remove('loading'); generateBtn.disabled = false;
+      regenerateBtn.disabled = false; copyBtn.disabled = false;
+      generateBtn.textContent = 'Generar';
+    }
+  }catch(e){}
+}
 if(generateBtn){
-  generateBtn.addEventListener('click', ()=>{
+  generateBtn.addEventListener('click', async ()=>{
     // Privacy-by-default: clear manual input and disable manual-eval before generating
     try{ customPw.value = ''; }catch(e){}
     try{ useCustom.checked = false; }catch(e){}
     try{ passwordInput.readOnly = true; }catch(e){}
     console.log('generateBtn clicked');
     statusEl.textContent = 'PGW: Generando (manual borrado)';
-    render();
+    setLoading(true,'Generando...');
+    try{ await render(); }catch(e){ console.error('Error en render:', e); statusEl.textContent='PGW: error al generar'; }
+    finally{ setLoading(false); }
   });
   // Fallback onclick (safe)
-  generateBtn.onclick = () => { try{ statusEl.textContent = 'PGW: Generar onclick (manual borrado)'; customPw.value=''; useCustom.checked=false; passwordInput.readOnly = true; render(); } catch(e){ console.error('Error en render desde onclick fallback', e); statusEl.textContent = 'PGW: error al generar (ver consola)'; } };
+  generateBtn.onclick = () => { (async ()=>{ try{ statusEl.textContent = 'PGW: Generar onclick (manual borrado)'; customPw.value=''; useCustom.checked=false; passwordInput.readOnly = true; setLoading(true,'Generando...'); await render(); }catch(e){ console.error('Error en render desde onclick fallback', e); statusEl.textContent = 'PGW: error al generar (ver consola)'; } finally{ setLoading(false); } })(); };
 } else {
   console.warn('generateBtn no encontrado');
   statusEl.textContent = 'PGW: generateBtn no encontrado';
 }
-if(regenerateBtn){ regenerateBtn.addEventListener('click', ()=>{ console.log('regenerate clicked'); statusEl.textContent = 'PGW: Regenerar'; render(); }); }
+if(regenerateBtn){ regenerateBtn.addEventListener('click', async ()=>{ console.log('regenerate clicked'); statusEl.textContent = 'PGW: Regenerar'; setLoading(true,'Generando...'); try{ await render(); }catch(e){ console.error(e); } finally{ setLoading(false); } }); }
 else { console.warn('regenerateBtn no encontrado'); }
 if(copyBtn){
   copyBtn.addEventListener('click', ()=>{
@@ -517,15 +639,108 @@ function tryClearClipboard(delayMs=15000){
 
 // reaccionar a cambios en tasa seleccionada
 // reaccionar a cambios en tasa seleccionada
-if(rateSelect) rateSelect.addEventListener('change', ()=>{ customRate.value = rateSelect.value; render(); });
-if(customRate) customRate.addEventListener('input', ()=>{ render(); });
+if(rateSelect) rateSelect.addEventListener('change', async ()=>{ customRate.value = rateSelect.value; try{ await render(); }catch(e){console.error(e);} });
+if(customRate) customRate.addEventListener('input', async ()=>{ try{ await render(); }catch(e){console.error(e);} });
+
+// HIBP check (opt-in) - k-anonymity flow
+const hibpOptIn = el('hibpOptIn');
+const hibpCheck = el('hibpCheck');
+const hardcore = el('hardcore');
+const breakdownEl = el('breakdown');
+if(hibpCheck){
+  hibpCheck.addEventListener('click', async ()=>{
+    // Consent check
+    if(hibpOptIn && !hibpOptIn.checked){ if(!confirm('No ha marcado la casilla de opt-in para HIBP. Desea continuar y marcarla?')) return; hibpOptIn.checked = true; }
+    // choose password to check: prefer manual if set, else current output
+    const pw = (useCustom && useCustom.checked && customPw && customPw.value.trim()) ? customPw.value.trim() : passwordInput.value || '';
+    if(!pw){ alert('No hay contraseña para comprobar.'); return; }
+    // Compute SHA-1 locally via worker
+    statusEl.textContent = 'PGW: calculando SHA-1 localmente...';
+    try{
+      const hash = await sha1HexWorker(pw);
+      const prefix = hash.slice(0,5);
+      const suffix = hash.slice(5);
+      statusEl.textContent = 'PGW: consultando HIBP (prefijo)';
+      const resp = await fetch('https://api.pwnedpasswords.com/range/' + prefix);
+      if(!resp.ok){ statusEl.textContent = 'PGW: HIBP no disponible'; alert('No se pudo consultar HIBP: ' + resp.status); return; }
+      const txt = await resp.text();
+      const lines = txt.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+      let found = 0;
+      for(const line of lines){ const [suf,cnt] = line.split(':'); if(suf && suf.toUpperCase()===suffix.toUpperCase()){ found = parseInt(cnt,10) || 0; break; } }
+      if(found>0){ statusEl.textContent = `PGW: contraseña encontrada ${found} veces en HIBP`; alert(`Esta contraseña apareció ${found} veces en la base de datos de HIBP. Recomendado cambiarla.`); }
+      else { statusEl.textContent = 'PGW: no encontrada en HIBP (con el prefijo consultado)'; alert('No aparece en HIBP según el prefijo consultado.'); }
+    }catch(e){ console.error('Error HIBP:', e); statusEl.textContent = 'PGW: error HIBP (ver consola)'; alert('Error al consultar HIBP: ' + e.message); }
+  });
+}
+
+// Hardcore breakdown toggle
+if(hardcore){ hardcore.addEventListener('change', async ()=>{ if(hardcore.checked) breakdownEl.style.display='block'; else breakdownEl.style.display='none'; try{ await render(); }catch(e){console.error(e);} }); }
+
+// Pattern detector and hardcore breakdown
+function detectPatterns(pw){
+  const reasons = [];
+  if(!pw) return reasons;
+  // dates like 2020, 20/10/1990, 19901010
+  if(/\b(19|20)\d{2}\b/.test(pw) || /\b\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4}\b/.test(pw)) reasons.push('Contiene fecha o año (predecible)');
+  // common name heuristic: capitalized word + lowercase (simple)
+  if(/\b[A-Z][a-z]{2,}\b/.test(pw)) reasons.push('Contiene palabras con formato nombre (posible nombre propio)');
+  // sequences
+  if(/(0123|1234|2345|3456|4567|5678|6789|7890)/.test(pw)) reasons.push('Contiene secuencia numérica');
+  if(/(.)\1{3,}/.test(pw)) reasons.push('Contiene repetición larga de caracteres');
+  return reasons;
+}
+
+function breakdownEntropyDetailed(pw){
+  if(!pw) return [];
+  const tokens = [];
+  // split by spaces for passphrases, otherwise group runs of same class
+  if(pw.includes(' ')){
+    for(const w of pw.split(/\s+/).filter(Boolean)){
+      const cls = /[^A-Za-z0-9]/.test(w) ? 'symbol' : (/\d/.test(w)?'digits':'letters');
+      const pool = cls==='symbol'? SYMBOLS.length : (cls==='digits'?10:52);
+      const bits = Math.round(w.length * Math.log2(pool));
+      tokens.push({token:w, bits, cls});
+    }
+    return tokens;
+  }
+  // otherwise, run-length group
+  let i=0;
+  while(i<pw.length){
+    const ch = pw[i];
+    const isDigit = /\d/.test(ch);
+    const isAlpha = /[A-Za-z]/.test(ch);
+    const isSymbol = !isDigit && !isAlpha;
+    let j=i+1;
+    while(j<pw.length){
+      const ch2 = pw[j];
+      if((/\d/.test(ch2))===isDigit && (/[^A-Za-z0-9]/.test(ch2))===isSymbol && (/[^0-9]/.test(ch2))===isAlpha) j++; else break;
+    }
+    const token = pw.slice(i,j);
+    const cls = isSymbol ? 'symbol' : (isDigit ? 'digits' : 'letters');
+    const pool = cls==='symbol'? SYMBOLS.length : (cls==='digits'?10: (/[a-z]/.test(token)&&/[A-Z]/.test(token)?52:26));
+    const bits = Math.round(token.length * Math.log2(pool));
+    tokens.push({token, bits, cls});
+    i=j;
+  }
+  return tokens;
+}
 
 // Inicializar
-updateUI(); render();
+// Inicializar: update UI and run first render async
+(async ()=>{
+  try{
+    updateUI();
+    await render();
+    statusEl.textContent = 'PGW: listo';
+  }catch(e){
+    console.error('Error al inicializar render/updateUI', e);
+    statusEl.textContent = 'PGW: init error (ver consola)';
+  }
+})();
 
 // Wire up custom evaluation controls
 if(evalCustom){
-  evalCustom.addEventListener('click', ()=>{
+  evalCustom.addEventListener('click', async ()=>{
     useCustom.checked = true;
     // copy customPw into password input for clarity
     if(customPw.value && customPw.value.trim().length>0) passwordInput.value = customPw.value.trim();
@@ -537,14 +752,14 @@ if(evalCustom){
     }catch(e){/* ignore if element missing */}
     // focus the manual field so user can edit if needed
     try{ customPw.focus(); }catch(e){}
-    render();
+    try{ await render(); }catch(e){ console.error('Error en render desde evalCustom', e); }
   });
 }
 if(useCustom){
-  useCustom.addEventListener('change', ()=>{
+  useCustom.addEventListener('change', async ()=>{
     // when unchecked, make password input readonly and regenerate from settings
     passwordInput.readOnly = !useCustom.checked;
-    if(!useCustom.checked){ render(); }
+    if(!useCustom.checked){ try{ await render(); }catch(e){ console.error('Error en render desde useCustom change', e); } }
   });
   // start with password input readonly
   passwordInput.readOnly = true;

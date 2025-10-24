@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Generador de Contraseñas — Seguro y Divertido</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <main class="container">
+      <header class="hero">
+        <h1>Generador de Contraseñas</h1>
+        <p class="subtitle">Crea contraseñas a tu gusto, comprueba su fuerza y descubre cuánto tardaría en romperse (con frases divertidas cuando ya es prácticamente imposible).</p>
+      </header>
+
+      <section class="card controls">
+        <div class="row">
+          <label for="length">Longitud: <span id="lengthVal">16</span></label>
+          <input id="length" type="range" min="6" max="128" value="16">
+        </div>
+
+        <div class="row checkbox-row">
+          <label><input id="lower" type="checkbox" checked> Minúsculas</label>
+          <label><input id="upper" type="checkbox" checked> Mayúsculas</label>
+          <label><input id="numbers" type="checkbox" checked> Números</label>
+          <label><input id="symbols" type="checkbox" checked> Símbolos</label>
+        </div>
+
+        <div class="row passphrase-row">
+          <label><input id="passphrase" type="checkbox"> Usar frase (palabras aleatorias)</label>
+          <label id="wordsLabel" class="muted">Palabras: <span id="wordsVal">4</span></label>
+          <input id="words" type="range" min="3" max="8" value="4">
+        </div>
+
+        <div class="row actions">
+          <button id="generate" class="btn primary">Generar</button>
+          <button id="regenerate" class="btn">Regenerar</button>
+          <button id="copy" class="btn">Copiar</button>
+        </div>
+      </section>
+
+      <section class="card output">
+        <div class="passwordBox">
+          <input id="password" readonly aria-label="Contraseña generada">
+        </div>
+
+        <div class="meter">
+          <div class="meter-bar" id="meterBar"></div>
+        </div>
+        <div class="meter-info">
+          <div id="strengthLabel">Fuerza: —</div>
+          <div id="entropyLabel">Entropía: — bits</div>
+        </div>
+
+        <div class="crack">
+          <label>Estimación tiempo de crack (velocidad alta):</label>
+          <div id="crackTime">—</div>
+          <div id="funny" class="funny"> </div>
+        </div>
+      </section>
+
+      <footer class="footer">
+        <small>Generado con amor 🔒 · Abre <strong>index.html</strong> en tu navegador para usarlo localmente.</small>
+      </footer>
+    </main>
+
+    <script src="script.js"></script>
+  </body>
+</html>

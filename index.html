@@ -38,6 +38,10 @@
           <button id="regenerate" class="btn">Regenerar</button>
           <button id="copy" class="btn">Copiar</button>
         </div>
+        <div class="row" style="margin-top:8px;gap:8px;align-items:center">
+          <label><input id="deterministic" type="checkbox"> Generador determinista (semilla)</label>
+          <input id="seedInput" type="text" placeholder="Introduce semilla para reproducir" style="flex:1">
+        </div>
       </section>
 
       <section class="card output">
@@ -73,7 +77,13 @@
               <input id="customPw" type="text" placeholder="Pega o escribe una contraseña para evaluar" style="flex:1">
               <button id="evalCustom" class="btn">Evaluar</button>
             </div>
+            <div class="row" style="margin-top:8px;gap:8px;align-items:center">
+              <label><input id="hibpOptIn" type="checkbox"> Comprobar brechas (HaveIBeenPwned) — opt-in</label>
+              <button id="hibpCheck" class="btn">Comprobar ahora</button>
+              <label style="margin-left:8px;color:var(--muted)">Modo hardcore: <input id="hardcore" type="checkbox"></label>
+            </div>
             <div id="calcSource" class="muted" style="margin-top:8px">Fuente: ajustes</div>
+            <div id="breakdown" style="margin-top:8px;color:var(--muted);display:none"></div>
         </div>
       </section>
 

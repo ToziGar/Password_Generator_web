@@ -161,8 +161,8 @@ function fakeWord(){
   // Creamos palabras pseudoaleatorias para la frase (evita listas grandes)
   const syll = ['ba','be','bi','bo','bu','ra','re','ri','ro','ru','ta','te','ti','to','tu','sol','mar','luz','nube','casa','palo','gato','perro','luna','alto','bajo'];
   const w = [];
-  const parts = 2 + Math.floor(Math.random()*2);
-  for(let i=0;i<parts;i++) w.push(syll[Math.floor(Math.random()*syll.length)]);
+  const parts = 2 + secureRandomInt(2);
+  for(let i=0;i<parts;i++) w.push(secureChoice(syll));
   return capitalize(w.join(''));
 }
 
@@ -403,6 +403,15 @@ function showFunnyPhrase(text){
   funnyEl.classList.add('show');
 }
 
+// SHA-1 helper: returns hex digest of input string using SubtleCrypto (used for k-anonymity)
+async function sha1Hex(str){
+  const enc = new TextEncoder();
+  const data = enc.encode(str);
+  const hash = await crypto.subtle.digest('SHA-1', data);
+  const b = new Uint8Array(hash);
+  return Array.from(b).map(x=>x.toString(16).padStart(2,'0')).join('').toUpperCase();
+}
+
 // Simple confetti implementation (canvas)
 function launchConfetti(){
   const canvas = document.getElementById('confetti');
@@ -459,9 +468,17 @@ lengthEl.addEventListener('input', updateUI);
 words.addEventListener('input', updateUI);
 passphrase.addEventListener('change', updateUI);
 if(generateBtn){
-  generateBtn.addEventListener('click', ()=>{ console.log('generateBtn clicked'); statusEl.textContent = 'PGW: Generar pulsado'; render(); });
-  // Fallback: también exponemos un onclick directo por si algo impide el listener estándar
-  generateBtn.onclick = () => { try{ console.log('generateBtn onclick fallback'); statusEl.textContent = 'PGW: Generar onclick'; render(); } catch(e){ console.error('Error en render desde onclick fallback', e); statusEl.textContent = 'PGW: error al generar (ver consola)'; } };
+  generateBtn.addEventListener('click', ()=>{
+    // Privacy-by-default: clear manual input and disable manual-eval before generating
+    try{ customPw.value = ''; }catch(e){}
+    try{ useCustom.checked = false; }catch(e){}
+    try{ passwordInput.readOnly = true; }catch(e){}
+    console.log('generateBtn clicked');
+    statusEl.textContent = 'PGW: Generando (manual borrado)';
+    render();
+  });
+  // Fallback onclick (safe)
+  generateBtn.onclick = () => { try{ statusEl.textContent = 'PGW: Generar onclick (manual borrado)'; customPw.value=''; useCustom.checked=false; passwordInput.readOnly = true; render(); } catch(e){ console.error('Error en render desde onclick fallback', e); statusEl.textContent = 'PGW: error al generar (ver consola)'; } };
 } else {
   console.warn('generateBtn no encontrado');
   statusEl.textContent = 'PGW: generateBtn no encontrado';
@@ -476,10 +493,27 @@ if(copyBtn){
       passwordOut.classList.add('flash');
       setTimeout(()=>passwordOut.classList.remove('flash'),700);
       setTimeout(()=>copyBtn.textContent = 'Copiar',1200);
+        // Try to clear clipboard after 15s (best-effort) and notify user
+        tryClearClipboard(15000);
     });
     console.log('copyBtn clicked');
   });
 } else { console.warn('copyBtn no encontrado'); }
+
+// Attempt to clear clipboard after a short time (best-effort). Browsers may restrict this.
+function tryClearClipboard(delayMs=15000){
+  setTimeout(async ()=>{
+    try{
+      // Overwrite clipboard with an empty string
+      await navigator.clipboard.writeText('');
+      statusEl.textContent = 'PGW: portapapeles borrado (intento)';
+    }catch(e){
+      // If denied by browser, show message but don't expose password
+      console.warn('No se pudo limpiar portapapeles automáticamente:', e);
+      statusEl.textContent = 'PGW: no se pudo limpiar portapapeles automáticamente';
+    }
+  }, delayMs);
+}
 
 // reaccionar a cambios en tasa seleccionada
 // reaccionar a cambios en tasa seleccionada

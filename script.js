@@ -651,11 +651,15 @@ const hardcore = el('hardcore');
 const breakdownEl = el('breakdown');
 if(hibpCheck){
   hibpCheck.addEventListener('click', async ()=>{
-    // Consent check
-    if(hibpOptIn && !hibpOptIn.checked){ if(!confirm('No ha marcado la casilla de opt-in para HIBP. Desea continuar y marcarla?')) return; hibpOptIn.checked = true; }
+    // Consent check (accessible confirm modal)
+    if(hibpOptIn && !hibpOptIn.checked){
+      const ok = await showConfirmModal('No ha marcado la casilla de opt-in para HIBP. ¿Desea continuar y marcarla?');
+      if(!ok) return;
+      hibpOptIn.checked = true;
+    }
     // choose password to check: prefer manual if set, else current output
     const pw = (useCustom && useCustom.checked && customPw && customPw.value.trim()) ? customPw.value.trim() : passwordInput.value || '';
-    if(!pw){ alert('No hay contraseña para comprobar.'); return; }
+  if(!pw){ showToast('No hay contraseña para comprobar.', 'warn'); return; }
     // Compute SHA-1 locally via worker
     statusEl.textContent = 'PGW: calculando SHA-1 localmente...';
     try{
@@ -664,14 +668,14 @@ if(hibpCheck){
       const suffix = hash.slice(5);
       statusEl.textContent = 'PGW: consultando HIBP (prefijo)';
       const resp = await fetch('https://api.pwnedpasswords.com/range/' + prefix);
-      if(!resp.ok){ statusEl.textContent = 'PGW: HIBP no disponible'; alert('No se pudo consultar HIBP: ' + resp.status); return; }
+  if(!resp.ok){ statusEl.textContent = 'PGW: HIBP no disponible'; showToast('No se pudo consultar HIBP: ' + resp.status, 'error'); return; }
       const txt = await resp.text();
       const lines = txt.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
       let found = 0;
       for(const line of lines){ const [suf,cnt] = line.split(':'); if(suf && suf.toUpperCase()===suffix.toUpperCase()){ found = parseInt(cnt,10) || 0; break; } }
-      if(found>0){ statusEl.textContent = `PGW: contraseña encontrada ${found} veces en HIBP`; alert(`Esta contraseña apareció ${found} veces en la base de datos de HIBP. Recomendado cambiarla.`); }
-      else { statusEl.textContent = 'PGW: no encontrada en HIBP (con el prefijo consultado)'; alert('No aparece en HIBP según el prefijo consultado.'); }
-    }catch(e){ console.error('Error HIBP:', e); statusEl.textContent = 'PGW: error HIBP (ver consola)'; alert('Error al consultar HIBP: ' + e.message); }
+  if(found>0){ statusEl.textContent = `PGW: contraseña encontrada ${found} veces en HIBP`; showToast(`Esta contraseña apareció ${found} veces en la base de datos de HIBP. Recomendado cambiarla.`, 'warn'); }
+  else { statusEl.textContent = 'PGW: no encontrada en HIBP (con el prefijo consultado)'; showToast('No aparece en HIBP según el prefijo consultado.', 'info'); }
+  }catch(e){ console.error('Error HIBP:', e); statusEl.textContent = 'PGW: error HIBP (ver consola)'; showToast('Error al consultar HIBP: ' + e.message, 'error'); }
   });
 }
 
@@ -888,6 +892,9 @@ function showMasterModal(promptText, placeholder, opts = {}){
     let firstFocusable = focusable[0];
     let lastFocusable = focusable[focusable.length-1];
 
+    const masterErrorEl = el('masterError');
+    const clearMasterError = ()=>{ if(masterErrorEl){ masterErrorEl.style.display='none'; masterErrorEl.textContent=''; } };
+
     const cleanup = (val)=>{
       try{ modal.style.display = 'none'; }catch(e){}
       try{ if(main) main.removeAttribute('aria-hidden'); }catch(e){}
@@ -895,14 +902,15 @@ function showMasterModal(promptText, placeholder, opts = {}){
       cancelBtn.removeEventListener('click', onCancel);
       document.removeEventListener('keydown', onKey);
       modal.removeEventListener('keydown', onModalKeydown);
+      clearMasterError();
       resolve(val);
     };
 
     const onConfirm = ()=>{
       const val = input.value || null;
       if(opts.requireConfirm && confirmInput){
-        if(val === null || val === ''){ alert('La contraseña maestra no puede estar vacía.'); return; }
-        if(confirmInput.value !== val){ alert('Las contraseñas no coinciden. Por favor, repite la contraseña.'); confirmInput.focus(); return; }
+  if(val === null || val === ''){ if(masterErrorEl){ masterErrorEl.textContent = 'La contraseña maestra no puede estar vacía.'; masterErrorEl.style.display='block'; input.focus(); } return; }
+  if(confirmInput.value !== val){ if(masterErrorEl){ masterErrorEl.textContent = 'Las contraseñas no coinciden. Por favor, repite la contraseña.'; masterErrorEl.style.display='block'; confirmInput.focus(); } return; }
       }
       cleanup(val);
     };
@@ -929,6 +937,57 @@ function showMasterModal(promptText, placeholder, opts = {}){
   });
 }
 
+// Accessible confirm modal to replace window.confirm()
+function showConfirmModal(message, title = 'Confirmación'){
+  return new Promise((resolve)=>{
+    const modal = el('confirmModal');
+    if(!modal){ const res = window.confirm(message); resolve(res); return; }
+    const label = el('confirmModalLabel');
+    const body = el('confirmModalBody');
+    const okBtn = el('confirmOk');
+    const cancelBtn = el('confirmCancel');
+    const main = document.querySelector('main.container');
+    if(label) label.textContent = title;
+    if(body) body.textContent = message;
+    // show modal and hide main from assistive tech
+    modal.style.display = 'flex';
+    try{ if(main) main.setAttribute('aria-hidden','true'); }catch(e){}
+
+    const focusableSelector = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+    const focusable = Array.from(modal.querySelectorAll(focusableSelector)).filter(elm => !elm.hasAttribute('disabled'));
+    const firstFocusable = focusable[0];
+    const lastFocusable = focusable[focusable.length-1];
+
+    const cleanup = (val)=>{
+      try{ modal.style.display = 'none'; }catch(e){}
+      try{ if(main) main.removeAttribute('aria-hidden'); }catch(e){}
+      okBtn.removeEventListener('click', onOk);
+      cancelBtn.removeEventListener('click', onCancel);
+      document.removeEventListener('keydown', onKey);
+      modal.removeEventListener('keydown', onModalKeydown);
+      resolve(val);
+    };
+
+    const onOk = ()=> cleanup(true);
+    const onCancel = ()=> cleanup(false);
+    const onKey = (e)=>{ if(e.key === 'Escape') onCancel(); };
+    const onModalKeydown = (e)=>{
+      if(e.key !== 'Tab') return;
+      if(focusable.length === 0) return;
+      const idx = focusable.indexOf(document.activeElement);
+      if(e.shiftKey){ if(document.activeElement === firstFocusable || idx === -1){ e.preventDefault(); lastFocusable.focus(); } }
+      else { if(document.activeElement === lastFocusable || idx === -1){ e.preventDefault(); firstFocusable.focus(); } }
+    };
+
+    okBtn.addEventListener('click', onOk);
+    cancelBtn.addEventListener('click', onCancel);
+    document.addEventListener('keydown', onKey);
+    modal.addEventListener('keydown', onModalKeydown);
+    // focus first actionable element
+    setTimeout(()=>{ try{ (firstFocusable||okBtn).focus(); }catch(e){} }, 20);
+  });
+}
+
 // Wire buttons
 const exportBtn = el('exportBtn');
 const importBtn = el('importBtn');
@@ -938,7 +997,7 @@ if(exportBtn){
   exportBtn.addEventListener('click', async ()=>{
     try{
       const pw = passwordInput.value || '';
-      if(!pw){ alert('No hay contraseña generada para exportar'); return; }
+  if(!pw){ showToast('No hay contraseña generada para exportar', 'warn'); return; }
       // Build object to export (do not include unnecessary logs)
       const payload = {
         createdAt: (new Date()).toISOString(),
@@ -956,7 +1015,7 @@ if(exportBtn){
         }
       };
   const master = await showMasterModal('Introduce una contraseña maestra para cifrar el backup (no se guardará).', '', { requireConfirm: true });
-  if(!master){ alert('Cancelado. Se requiere una contraseña maestra para cifrar.'); return; }
+  if(!master){ showToast('Cancelado. Se requiere una contraseña maestra para cifrar.', 'warn'); return; }
   statusEl.textContent = 'PGW: cifrando backup...';
   const iters = (kdfIterations && Number(kdfIterations.value)) || 200000;
   const exported = await encryptBackupObject(payload, master, iters);
@@ -965,7 +1024,7 @@ if(exportBtn){
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
       statusEl.textContent = 'PGW: backup descargado (cifrado)';
-    }catch(e){ console.error('Export error:', e); alert('Error al exportar: '+(e.message||e)); statusEl.textContent = 'PGW: error export'; }
+  }catch(e){ console.error('Export error:', e); showToast('Error al exportar: '+(e.message||e), 'error'); statusEl.textContent = 'PGW: error export'; }
   });
 }
 
@@ -978,12 +1037,12 @@ if(importBtn && importFile){
       const txt = await f.text();
       const parsed = JSON.parse(txt);
   const master = await showMasterModal('Introduce la contraseña maestra usada para cifrar este backup:');
-  if(!master){ alert('Importación cancelada. Se requiere la contraseña maestra.'); return; }
+  if(!master){ showToast('Importación cancelada. Se requiere la contraseña maestra.', 'warn'); return; }
       statusEl.textContent = 'PGW: descifrando backup...';
       const obj = await decryptBackupObject(parsed, master);
-      // Ask user before loading into UI to avoid unintended overwrites
-      const want = confirm('Backup descifrado correctamente. Contiene contraseña y opciones. ¿Desea cargar la contraseña en la interfaz ahora? (Se sobrescribirá el campo actual)');
-      if(want){
+  // Ask user before loading into UI to avoid unintended overwrites (accessible confirm)
+  const want = await showConfirmModal('Backup descifrado correctamente. Contiene contraseña y opciones. ¿Desea cargar la contraseña en la interfaz ahora? (Se sobrescribirá el campo actual)');
+  if(want){
         try{ passwordInput.value = obj.password || ''; useCustom.checked = true; passwordInput.readOnly = false; }catch(e){}
         try{
           if(obj.options){
@@ -999,7 +1058,7 @@ if(importBtn && importFile){
       } else {
         statusEl.textContent = 'PGW: backup descifrado (no cargado)';
       }
-    }catch(e){ console.error('Import error:', e); alert('Error al importar/descifrar: ' + (e.message||e)); statusEl.textContent = 'PGW: error import'; }
+  }catch(e){ console.error('Import error:', e); showToast('Error al importar/descifrar: ' + (e.message||e), 'error'); statusEl.textContent = 'PGW: error import'; }
     // Reset file input
     importFile.value = '';
   });
@@ -1047,4 +1106,20 @@ async function estimateKdfEta(iterations){
 
 if(kdfIterations){
   kdfIterations.addEventListener('change', async ()=>{ try{ await estimateKdfEta(Number(kdfIterations.value)); }catch(e){console.error(e);} });
+}
+
+// Simple toast notifications (non-blocking)
+function showToast(msg, type='info', timeout=5000){
+  let container = el('toastContainer');
+  if(!container){
+    container = document.createElement('div'); container.id = 'toastContainer'; container.className = 'toast-container'; document.body.appendChild(container);
+  }
+  const t = document.createElement('div'); t.className = 'toast ' + (type||'info');
+  t.textContent = msg;
+  t.setAttribute('role','status');
+  t.style.opacity = '0';
+  container.appendChild(t);
+  // fade in
+  requestAnimationFrame(()=>{ t.style.transition = 'opacity 240ms ease'; t.style.opacity = '1'; });
+  setTimeout(()=>{ try{ t.style.opacity = '0'; setTimeout(()=>t.remove(),300); }catch(e){} }, timeout);
 }

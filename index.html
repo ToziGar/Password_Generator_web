@@ -109,6 +109,7 @@
     </main>
 
       <canvas id="confetti" aria-hidden="true"></canvas>
+  <div id="toastContainer" class="toast-container" aria-live="polite" aria-atomic="true"></div>
       <!-- Master password modal (hidden by default). Used instead of prompt() for accessibility -->
       <div id="masterModal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="masterModalLabel" style="display:none">
         <div class="modal-dialog">
@@ -116,6 +117,7 @@
           <div class="modal-body">Introduce la contraseña maestra para cifrar/descifrar el backup. No se guardará en el navegador.</div>
           <label for="masterInput" class="visually-hidden">Contraseña maestra</label>
           <input id="masterInput" class="modal-input" type="password" autocomplete="new-password" placeholder="Contraseña maestra">
+          <div id="masterError" role="alert" aria-live="assertive" style="color:#ffb4b4;margin-top:8px;display:none;font-weight:600"></div>
           <div id="masterConfirmWrap" style="display:none;margin-top:8px">
             <label for="masterInputConfirm" class="visually-hidden">Confirmar contraseña maestra</label>
             <input id="masterInputConfirm" class="modal-input" type="password" autocomplete="new-password" placeholder="Repite la contraseña maestra para confirmar">
@@ -123,6 +125,17 @@
           <div class="modal-actions">
             <button id="masterCancel" class="btn">Cancelar</button>
             <button id="masterConfirm" class="btn primary">Confirmar</button>
+          </div>
+        </div>
+      </div>
+      <!-- Generic confirm modal to replace window.confirm() (accessible) -->
+      <div id="confirmModal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="confirmModalLabel" style="display:none">
+        <div class="modal-dialog">
+          <div id="confirmModalLabel" class="modal-header">Confirmación</div>
+          <div id="confirmModalBody" class="modal-body">¿Confirmar?</div>
+          <div class="modal-actions">
+            <button id="confirmCancel" class="btn">Cancelar</button>
+            <button id="confirmOk" class="btn primary">Confirmar</button>
           </div>
         </div>
       </div>

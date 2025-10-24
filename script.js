@@ -1310,8 +1310,13 @@ function ensureTutorialOverlay(){
   if(document.getElementById('pgw-tutorial-overlay')) return;
   const ov = document.createElement('div'); ov.id = 'pgw-tutorial-overlay'; ov.className = 'tutorial-overlay';
   const spot = document.createElement('div'); spot.id = 'pgw-tutorial-spot'; spot.className = 'tutorial-spot';
+  const label = document.createElement('div'); label.id = 'pgw-tutorial-spot-label'; label.className = 'tutorial-spot-label hidden';
+  // role=status so screen readers can be informed when label text changes; we also use a separate aria-live announcer elsewhere
+  label.setAttribute('role','status');
   ov.appendChild(spot);
   document.body.appendChild(ov);
+  // label appended to body (absolute positioned) so it can be placed near the spot
+  document.body.appendChild(label);
 }
 
 function hideTutorialOverlay(){
@@ -1319,9 +1324,10 @@ function hideTutorialOverlay(){
   if(!ov) return;
   try{ ov.classList.remove('visible'); }catch(e){}
   const spot = document.getElementById('pgw-tutorial-spot'); if(spot) try{ spot.style.width = '0px'; spot.style.height = '0px'; spot.style.left = '-9999px'; spot.style.top = '-9999px'; }catch(e){}
+  const label = document.getElementById('pgw-tutorial-spot-label'); if(label) try{ label.classList.add('hidden'); label.style.left = '-9999px'; label.style.top = '-9999px'; }catch(e){}
 }
 
-function showSpotFor(node){
+function showSpotFor(node, labelText){
   try{
     if(!node) { hideTutorialOverlay(); return; }
     ensureTutorialOverlay();
@@ -1345,6 +1351,42 @@ function showSpotFor(node){
       try{ gsap.to(ov, {duration:0.28, opacity:1, ease:'power2.out', onStart: ()=>ov.classList.add('visible')}); }catch(e){}
       try{ gsap.fromTo(spot, {left: left-8, top: top-8, width: w+16, height: h+16, scale:1.06, opacity:0.95}, {left, top, width: w, height: h, scale:1, opacity:1, duration:0.48, ease:'power3.out'}); }catch(e){}
     }
+
+    // Position and show label (if provided)
+    try{
+      const label = document.getElementById('pgw-tutorial-spot-label');
+      if(label){
+        // Set text (short title preferred). Use plain text to avoid injection.
+        label.textContent = labelText ? String(labelText) : '';
+        label.classList.remove('below');
+        label.classList.remove('hidden');
+        // Compute label size after adding text
+        // Give browser a tick to measure if animations enabled
+        const doPosition = ()=>{
+          const lr = label.getBoundingClientRect();
+          // Prefer placing label above the spot; if not enough space, place below
+          const preferredTop = top - lr.height - 12;
+          let labelTop = preferredTop;
+          let arrowBelow = false;
+          if(preferredTop < 6){ labelTop = top + h + 12; arrowBelow = true; }
+          let labelLeft = left + (w/2) - (lr.width/2);
+          // clamp within viewport
+          const pad = 8;
+          labelLeft = Math.max(pad, Math.min(labelLeft, window.innerWidth - lr.width - pad));
+          // apply
+          label.style.left = `${Math.round(labelLeft)}px`;
+          label.style.top = `${Math.round(labelTop)}px`;
+          if(arrowBelow) label.classList.add('below'); else label.classList.remove('below');
+          if(window.gsap && !reduced){
+            try{ gsap.killTweensOf(label); gsap.fromTo(label, {opacity:0, y: (arrowBelow? -6 : 6), scale:0.98}, {opacity:1, y:0, scale:1, duration:0.36, ease:'power2.out'}); }catch(e){}
+          } else {
+            label.style.opacity = '1'; label.style.transform = 'none';
+          }
+        };
+        // If GSAP is present and not reduced, allow a short delay to get stable layout before measuring
+        if(window.gsap && !reduced){ setTimeout(doPosition, 40); } else { doPosition(); }
+      }
+    }catch(e){ console.warn('label positioning failed', e); }
   }catch(err){ console.warn('showSpotFor failed', err); }
 }
 
@@ -1402,7 +1444,7 @@ async function renderTutorialStep(){
     if(s.highlight){
       const sels = Array.isArray(s.highlight) ? s.highlight : [s.highlight];
       const node = document.querySelector(sels[0]);
-      if(node) showSpotFor(node); else hideTutorialOverlay();
+        if(node) showSpotFor(node, s.title); else hideTutorialOverlay();
     } else {
       hideTutorialOverlay();
     }

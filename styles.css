@@ -289,6 +289,17 @@ input[type=range]{width:100%}
   .tutorial-spot, .tutorial-spot::after{ transition: none; filter: none }
 }
 
+/* Tooltip label attached to the spotlight */
+.tutorial-spot-label{position:absolute;pointer-events:none;z-index:245;min-width:140px;max-width:360px;padding:8px 12px;border-radius:10px;background:linear-gradient(180deg,rgba(6,8,14,0.95),rgba(12,14,20,0.95));color:var(--text);font-size:0.95rem;box-shadow:0 10px 30px rgba(2,6,23,0.6);border:1px solid rgba(255,255,255,0.03);transform-origin:center;transition:opacity 260ms ease, transform 260ms cubic-bezier(.2,.9,.2,1)}
+.tutorial-spot-label.hidden{opacity:0;transform:translateY(-6px) scale(0.995)}
+.tutorial-spot-label::after{content:'';position:absolute;left:50%;transform:translateX(-50%);width:10px;height:10px;background:inherit;border-left:1px solid rgba(255,255,255,0.02);border-top:1px solid rgba(255,255,255,0.02);transform-origin:center;transform:rotate(45deg);bottom:-5px}
+.tutorial-spot-label.below::after{top:-5px;bottom:auto;transform:rotate(45deg)}
+.tutorial-spot-label.below{transform-origin:top center}
+
+@media (prefers-reduced-motion: reduce){
+  .tutorial-spot-label{transition:none}
+}
+
 /* If user requests reduced motion, make overlay instant and non-animated */
 @media (prefers-reduced-motion: reduce){
   .tutorial-overlay{transition:none}

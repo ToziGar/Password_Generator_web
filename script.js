@@ -19,6 +19,59 @@ if(!statusEl){
   document.body.appendChild(statusEl);
 }
 
+// Read-only info modal (used by tutorial CTA). Presents a title and HTML/text body and returns when closed.
+function showInfoModal(message, title = 'Información'){
+  return new Promise((resolve)=>{
+    const modal = el('infoModal');
+    if(!modal){ // fallback to alert
+      try{ if(window.alert) window.alert(title + '\n\n' + message); }catch(e){}
+      resolve(); return;
+    }
+    const label = el('infoModalLabel');
+    const body = el('infoModalBody');
+    const closeBtn = el('infoClose');
+    const main = document.querySelector('#mainContent') || document.querySelector('main.container');
+    if(label) label.textContent = title || 'Información';
+    if(body){ if(typeof message === 'string') body.textContent = message; else body.innerHTML = String(message); }
+    // remember opener to restore focus later
+    const opener = document.activeElement;
+    // show modal and hide main from assistive tech
+    modal.style.display = 'flex';
+    try{ if(main) main.setAttribute('aria-hidden','true'); }catch(e){}
+
+    const focusableSelector = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+    const focusable = Array.from(modal.querySelectorAll(focusableSelector)).filter(elm => !elm.hasAttribute('disabled'));
+    const firstFocusable = focusable[0];
+    const lastFocusable = focusable[focusable.length-1];
+
+    const cleanup = ()=>{
+      try{ modal.style.display = 'none'; }catch(e){}
+      try{ if(main) main.removeAttribute('aria-hidden'); }catch(e){}
+      try{ closeBtn.removeEventListener('click', onClose); }catch(e){}
+      try{ document.removeEventListener('keydown', onKey); }catch(e){}
+      try{ modal.removeEventListener('keydown', onModalKeydown); }catch(e){}
+      try{ if(opener && typeof opener.focus === 'function') opener.focus(); }catch(e){}
+      resolve();
+    };
+
+    const onClose = ()=> cleanup();
+    const onKey = (e)=>{ if(e.key === 'Escape') onClose(); };
+    const onModalKeydown = (e)=>{
+      if(e.key !== 'Tab') return;
+      if(focusable.length === 0) return;
+      const idx = focusable.indexOf(document.activeElement);
+      if(e.shiftKey){ if(document.activeElement === firstFocusable || idx === -1){ e.preventDefault(); lastFocusable.focus(); } }
+      else { if(document.activeElement === lastFocusable || idx === -1){ e.preventDefault(); firstFocusable.focus(); } }
+    };
+
+    closeBtn.addEventListener('click', onClose);
+    document.addEventListener('keydown', onKey);
+    modal.addEventListener('keydown', onModalKeydown);
+    // focus first actionable element
+    setTimeout(()=>{ try{ (firstFocusable || closeBtn).focus(); }catch(e){} }, 20);
+  });
+}
+
 // Lightweight metrics for development/testing (kept in-memory only)
 window.__pgw_metrics = window.__pgw_metrics || { cancels: 0, retries: 0 };
 
@@ -1384,7 +1437,7 @@ function showSpotFor(node, labelText){
         // Wire CTA to show more info (use provided labelBody)
         const cta = label.querySelector('.label-cta');
         try{ if(label._ctaHandler && cta) cta.removeEventListener('click', label._ctaHandler); }catch(e){}
-        label._ctaHandler = (ev)=>{ try{ ev.preventDefault(); if(labelBody) showConfirmModal(labelBody, labelText || 'Información'); else showToast('Más información no disponible.', 'info'); }catch(e){ console.error('CTA handler failed', e); } };
+  label._ctaHandler = (ev)=>{ try{ ev.preventDefault(); if(labelBody) showInfoModal(labelBody, labelText || 'Información'); else showToast('Más información no disponible.', 'info'); }catch(e){ console.error('CTA handler failed', e); } };
         if(cta) cta.addEventListener('click', label._ctaHandler);
         label.classList.remove('below');
         label.classList.remove('hidden');

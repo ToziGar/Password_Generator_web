@@ -83,3 +83,31 @@ test.describe('Tutorial spotlight smoke', ()=>{
   });
 
 });
+
+test('quick accessibility scan (axe)', async ({ page }) => {
+  const fs = require('fs');
+  await page.goto('/');
+  // Attempt to load local axe-core, fallback to CDN
+  let axeSource = null;
+  try {
+    axeSource = fs.readFileSync(require.resolve('axe-core/axe.min.js'), 'utf8');
+  } catch (e) {
+    await page.addScriptTag({ url: 'https://cdnjs.cloudflare.com/ajax/libs/axe-core/4.6.3/axe.min.js' });
+  }
+  if (axeSource) await page.addScriptTag({ content: axeSource });
+
+  const result = await page.evaluate(async () => {
+    // eslint-disable-next-line no-undef
+    return await axe.run(document, { runOnly: { type: 'tag', values: ['wcag2aa'] } });
+  });
+
+  const outDir = 'test-results/axe';
+  try { fs.mkdirSync(outDir, { recursive: true }); } catch (e) {}
+  fs.writeFileSync(`${outDir}/axe-report.json`, JSON.stringify(result, null, 2));
+
+  const violations = result.violations || [];
+  const problematic = violations.filter(v => v.impact === 'critical' || v.impact === 'serious');
+  console.log(`axe: found ${violations.length} violations, ${problematic.length} critical/serious`);
+  // Fail if any critical/serious issues
+  expect(problematic.length).toBe(0);
+});

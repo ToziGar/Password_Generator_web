@@ -1,8 +1,68 @@
 
-# Generador de Contraseñas — Password_Generator_web
+# Password Generator (web)
 
-Versión: 1.0
-Fecha: 2025-10-24
+Descripción
+-----------
+Generador de contraseñas y frases de acceso (SPA) que produce contraseñas deterministas basadas en una clave maestra y parámetros seleccionables. Está pensado para generar credenciales reproducibles sin almacenar contraseñas en servidor alguno. La aplicación incluye opciones de verificación opcional contra el servicio Have I Been Pwned (k‑anonymity), exportación/ importación cifrada de datos, y mecanismos criptográficos ejecutados en un worker para mantener la interfaz responsiva.
+
+Características principales
+-------------------------
+- Generación determinista: HMAC‑DRBG derivado de la clave maestra para obtener bytes pseudoaleatorios reproducibles a partir de los mismos parámetros.
+- Exportación / importación cifrada: PBKDF2 para derivar la clave y AES‑GCM para el cifrado autenticado del archivo de respaldo.
+- Trabajo en segundo plano: operaciones costosas (PBKDF2, HMAC/DRBG) realizadas en un Web Worker; incluye un fallback embebido para entornos restringidos.
+- Comprobación opcional HIBP: integración con el endpoint de k‑anonymity para comprobar si una contraseña aparece en filtraciones públicas (opt‑in).
+- Accesibilidad: modales con trap de foco, regiones aria‑live para notificaciones, soporte prefers‑reduced‑motion.
+- Tests y QA: pruebas end‑to‑end y capturas visuales con Playwright; auditorías de accesibilidad con axe integradas en los tests.
+
+Seguridad y modelo de amenazas (breve)
+------------------------------------
+- No hay servidor de confianza: la generación determinista permite reproducir contraseñas localmente sin enviar la clave maestra a terceros.
+- Almacenamiento: la aplicación no guarda la clave maestra en el repositorio ni en servidores por defecto. El archivo de exportación está cifrado con AES‑GCM y protegido por una contraseña que se deriva con PBKDF2.
+- HIBP: la comprobación es opcional y usa la técnica de k‑anonymity (hash parcial) para minimizar la exposición del secreto.
+- Entorno: la seguridad depende del entorno de ejecución (navegador, dispositivo). El código asume un entorno de cliente moderno con Web Crypto API disponible; se incluye fallback funcional para entornos limitados.
+
+Estructura del repositorio
+-------------------------
+- `index.html` — interfaz principal y modales.
+- `styles.css` — variables de diseño, temas y animaciones.
+- `script.js` — lógica de la aplicación: generación, worker, export/import, tutorial y control de UI.
+- `worker.js` / fallback embebido — implementaciones de PBKDF2, HMAC‑DRBG y utilidades criptográficas ejecutadas en un worker.
+- `tests/` — pruebas Playwright (smoke, visual e integración de axe).
+- `.github/workflows/` — flujo CI para ejecución de pruebas y subida de artefactos.
+
+Requisitos
+----------
+- Navegador moderno con Web Crypto API (Chrome/Chromium, Edge, Firefox, Safari recientes).
+- Node.js (solo para ejecutar las pruebas con Playwright y herramientas de desarrollo).
+
+Uso rápido
+---------
+1. Instalar dependencias de desarrollo (opcional, solo para tests):
+
+```powershell
+npm install
+```
+
+2. Servir la carpeta del proyecto desde un servidor estático y abrir `index.html` en el navegador. (El proyecto es una aplicación estática de cliente.)
+
+3. Ejecutar pruebas (Playwright) desde el entorno de desarrollo:
+
+```powershell
+npx playwright test
+```
+
+Consideraciones de desarrollo
+-----------------------------
+- Mantener los IDs y selectores usados por las pruebas para no romper la suite de Playwright.
+- Las operaciones criptográficas se ejecutan en un worker; los cambios que afecten a `WORKER_FALLBACK_SRC` deben probarse en entornos con y sin posibilidad de crear Workers.
+
+Licencia
+--------
+Este repositorio incluye una licencia de código abierto (ver archivo `LICENSE`).
+
+Contacto
+-------
+Para detalles técnicos o reporte de incidencias, revisar los issues del repositorio.
 
 Descripción
 -----------

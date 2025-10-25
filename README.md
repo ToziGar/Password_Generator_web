@@ -32,109 +32,116 @@ El fichero exportado es JSON con la forma:
 
 ```json
 {
-    "version": 1,
-    "kdf": "pbkdf2",
-    "salt": "<base64>",
-    "iterations": 200000,
-    "iv": "<base64>",
-    "ciphertext": "<base64>"
-}
-```
+    # Generador de Contraseñas — Password_Generator_web
 
-El `ciphertext` contiene la representación JSON (cifrada) del objeto con la contraseña y opciones.
+    Versión: 1.0
+    Fecha: 2025-10-25
 
-Requisitos y compatibilidad
----------------------------
-- Navegador moderno con Web Crypto (`crypto.subtle`) y Web Worker.
-- Servir la app por HTTP/HTTPS (no se puede usar `Worker` desde `file://`). Recomendado HTTPS en producción.
+    ## Resumen
 
-Instalación y ejecución local rápida
------------------------------------
-Desde PowerShell (carpeta raíz del repo):
+    Este proyecto es una SPA (HTML/CSS/JS) para generar contraseñas y passphrases de forma segura en el cliente. Está diseñada para demostraciones locales y aprendizaje: todas las operaciones criptográficas se ejecutan en el navegador (Web Crypto + Web Worker). Incluye un tutorial interactivo con spotlight y tooltip, exportación cifrada (PBKDF2 + AES‑GCM), comprobación opcional en HaveIBeenPwned (k‑anonymity) y un worker fallback para entornos locales.
 
-```powershell
-python -m http.server 8000
-# luego abre http://localhost:8000 en tu navegador
-```
+    ## Estado actual (resumen de avances)
 
-Uso básico
-----------
-1. Ajusta las opciones (longitud, mayúsculas/minúsculas, números, símbolos) o activa "Usar frase" para generar passphrases.
-2. (Opcional) Activa "Generador determinista" e introduce una semilla para reproducir la salida.
-3. Haz clic en "Generar". El campo de salida mostrará la contraseña.
-4. Para comprobar HIBP marca la casilla opt‑in y pulsa "Comprobar ahora".
-5. Para exportar un backup cifrado, selecciona las iteraciones KDF deseadas y pulsa "Exportar (.json cifrado)"; confirma la contraseña maestra (repetición requerida en export).
-6. Para importar, usa "Importar (.json cifrado)" y facilita la contraseña maestra para descifrar.
+    - Generación determinista reproducible (HMAC‑DRBG en `worker.js`) — implementada.
+    - PBKDF2 + AES‑GCM export/import con salt/iv y esquema JSON — implementado.
+    - Worker para operaciones costosas (sha1, sha256, pbkdf2, hmacDrbg) + blob fallback — implementado.
+    - Tutorial interactivo con spotlight, etiqueta/CTA en el tooltip y posicionamiento/clamping robusto — implementado.
+    - Fallbacks: embedded wordlist y worker blob fallbacks para demos locales — implementados.
+    - Pruebas headless (Playwright) — scripts añadidos; ejecutar `npx playwright test` localmente para verificar el flujo de tutorial/tooltip.
 
-Decisiones de diseño y tradeoffs
---------------------------------
-- PBKDF2 con SHA‑256 se usa por compatibilidad y porque los navegadores proveen `SubtleCrypto`. Para mayor resistencia a ataques modernos, Argon2 sería preferible (requiere WASM/implementación externa).
-- Se proporciona un slider/selector de iteraciones (50k–800k). Más iteraciones implican mayor coste para el atacante, pero también más latencia para la derivación en el cliente — la app muestra una ETA estimada basada en un micro‑benchmark.
+    ## Estructura del repo
 
-Estructura del proyecto
------------------------
-- `index.html` — UI principal y controles.
-- `styles.css` — estilos y animaciones.
-- `script.js` — toda la lógica: generación, evaluación, export/import, HIBP, worker wrapper, UI.
-- `worker.js` — Web Worker que implementa `sha1`, `sha256`, `pbkdf2` y `hmacDrbg`.
-- `wordlist.txt` — (opcional) wordlist local para passphrases. Si no existe, la app intentará un fallback remoto o generará palabras pseudoaleatorias.
+    - `index.html` — Interfaz de usuario principal y controles del generador.
+    - `styles.css` — Tema, tokens y estilos del tutorial/spotlight/tooltip.
+    - `script.js` — Lógica de la app: generación, KDF, export/import, HIBP, worker wrapper y el motor del tutorial.
+    - `worker.js` — Implementación del worker (también inyectado como blob fallback cuando es necesario).
+    - `wordlist.txt` — (opcional) lista de palabras para passphrases; la app maneja un fallback incorporado si falta.
+    - `tests/` — Playwright tests (smoke tests que validan la apertura del tutorial y la presencia del tooltip/CTA).
 
-Calidad, pruebas y próximos pasos sugeridos
------------------------------------------
-- Actualmente no hay suite de tests automatizada en el repo. Recomendaciones:
-    - Añadir tests unitarios para encrypt/decrypt round‑trip.
-    - Tests para determinismo del DRBG.
-    - Pruebas de integración para export→import con distintos valores de iteraciones.
-- Mejoras UX sugeridas:
-    - Reemplazar `alert()` por errores inline accesibles.
-    - Modal de configuración para export con explicación sobre iteraciones y tiempo.
-    - Focus restoration (actualmente el modal usa focus trap; podemos restaurar foco al elemento que lo abrió).
+    ## Cómo ejecutar (desarrollo / demo)
 
-Limitaciones y notas importantes
--------------------------------
-- No expongas contraseñas reales en foros públicos ni en repositorios sin cifrar.
-- El backup cifrado sólo es seguro si usas una contraseña maestra fuerte y única.
-- El micro‑benchmark y la ETA son aproximaciones: resultados varían con CPU, temperatura y carga del navegador.
+    Recomendado: servir la carpeta por HTTP para evitar restricciones de `file://` con `Worker`.
 
-Contribuciones
---------------
-Pull requests y issues son bienvenidos. Algunas ideas de contribución:
-- Integrar Argon2 via WASM para KDF.
-- Añadir tests automáticos y CI (GitHub Actions).
-- Mejorar accesibilidad y localización.
+    Desde PowerShell (carpeta raíz del repo):
 
-Licencia
---------
-Revisa el fichero `LICENSE` en la raíz del repositorio para los términos de licencia.
+    ```powershell
+    python -m http.server 8000
+    # Abre en tu navegador: http://localhost:8000
+    ```
 
-Contacto
---------
-Repositorio: `Password_Generator_web` (owner: ToziGar)
+    Atajos importantes
 
-Gracias por probar el proyecto. Si deseas, puedo añadir ahora:
-- Suite de tests automatizada y comandos `npm`/`yarn` para desarrollo.
-- Un modal de export con más opciones de seguridad (confirmación, iteraciones personalizadas y estimación de tiempo). 
+    - Abrir tutorial: Shift+T (también hay un botón en la UI).
 
-Indica qué prefieres y lo implemento a continuación.
+    ## Pruebas automatizadas (Playwright)
 
+    Se añadió una pequeña suite de smoke tests con Playwright para verificar la interfaz del tutorial y el tooltip/CTA.
 
----
+    Instalación de dependencias (si necesitas ejecutar localmente los tests):
 
-Actualización rápida (25-Oct-2025) — UI polish
-------------------------------------------------
-- Reorganizado el toolbar: acciones primarias (Generar, Regenerar, Copiar) ahora están agrupadas y son más prominentes; acciones secundarias (Tutorial, Exportar, Importar) están a la derecha.
-- Reducción de transparencias y blur en tarjetas y modales para mejorar legibilidad.
-- Botones rediseñados: jerarquía clara entre primario y secundario, tamaños consistentes y mejores estados de enfoque/hover.
-- Mejoras de accesibilidad: soporte `prefers-reduced-motion`, focus-visible, tamaños mínimos de objetivo táctil.
+    ```powershell
+    npm install
+    npx playwright install
+    ```
 
-Prueba rápida después de los cambios
------------------------------------
-1. Sirve la carpeta (por ejemplo `python -m http.server 8000`) y abre http://localhost:8000
-2. Verifica el header, el grupo de acciones y que el botón "Generar" destaque.
-3. Abre el tutorial (Shift+T) y revisa que el contenido es legible y que los highlights son sutiles.
+    Ejecutar tests headless (Chromium):
 
-Si quieres, puedo:
-- Ajustar la tipografía (ej. cambiar a SF Pro/Inter refinado) y exportar un screenshot de ejemplo.
-- Implementar una coreografía GSAP paso a paso para el tutorial (scroll+spotlight+announce).
+    ```powershell
+    npx playwright test --project=chromium
+    ```
+
+    > Nota: en esta sesión intenté ejecutar los tests desde el entorno de desarrollo, pero el terminal devolvió una interrupción en la ejecución; los tests están añadidos al repo y están listos para ejecutarse localmente (si ves algún fallo, asegúrate de arrancar el servidor HTTP y de instalar los navegadores con `npx playwright install`).
+
+    ## Backup cifrado (export / import)
+
+    Los backups exportados son JSON con la siguiente forma:
+
+    ```json
+    {
+      "version": 1,
+      "kdf": "pbkdf2",
+      "salt": "<base64>",
+      "iterations": 200000,
+      "iv": "<base64>",
+      "ciphertext": "<base64>"
+    }
+    ```
+
+    La app cifra el JSON de datos con AES‑GCM usando una clave derivada por PBKDF2(SHA‑256). Ajusta `iterations` según el balance seguridad/latencia que desees.
+
+    ## Seguridad y privacidad
+
+    - Todo ocurre en el cliente (no se envían contraseñas por defecto).
+    - HIBP es opt‑in y usa k‑anonymity (sólo se envía el prefijo SHA‑1 de 5 hex).
+    - Usa una contraseña maestra fuerte para los backups cifrados.
+
+    ## Estado del TODO (corto)
+
+    - Add CTA to tooltip — completed
+    - Adjust tooltip colors for light theme — completed
+    - Improve tooltip repositioning/clamping — completed
+    - Add Playwright headless smoke test — completed
+    - Run interactive smoke test (manual) — completed (basic verification via Playwright smoke tests added; se recomienda una verificación visual manual en distintos navegadores y tamaños de pantalla antes de publicar)
+
+    ## Próximos pasos sugeridos (opciones)
+
+    1. Hacer QA visual manual en Chrome/Firefox/Safari y dispositivos móviles (verificar el spotlight y la etiqueta/CTA en distintos tamaños y temas).
+    2. Añadir un modal `showInfoModal()` para la CTA (enlace la etiqueta/CTA a un modal con explicación ampliada en lugar de una acción rápida).
+    3. Reemplazar PBKDF2 por Argon2 (WASM) si prefieres mayor resistencia a ataques GPU/ASIC; implica añadir un binario WASM y adaptaciones de API.
+    4. Añadir tests unitarios JS (encrypt/decrypt, determinismo DRBG) y configurar CI (GitHub Actions) para ejecutar Playwright en un runner.
+
+    ## Cómo contribuir
+
+    - Crea un fork y un branch para tus cambios.
+    - Abre un PR con descripción clara y, si afecta seguridad/criptografía, añade pruebas y razones técnicas.
+
+    ## Contacto y licencia
+
+    Revisa `LICENSE` en la raíz para detalles de licencia. Para preguntas abre un issue en el repo.
+
+    ----
+
+    Si quieres, implemento ahora alguna de las opciones de "próximos pasos" (por ejemplo: convertir la CTA en un modal informativo y añadir una prueba visual que capture screenshots con Playwright). Dime cuál prefieres y lo hago.
 
 

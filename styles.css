@@ -296,9 +296,20 @@ input[type=range]{width:100%}
 .tutorial-spot-label.below::after{top:-5px;bottom:auto;transform:rotate(45deg)}
 .tutorial-spot-label.below{transform-origin:top center}
 
+/* label internals */
+.tutorial-spot-label .label-inner{display:flex;gap:8px;align-items:center;justify-content:space-between}
+.tutorial-spot-label .label-text{flex:1;padding-right:8px}
+.tutorial-spot-label .label-cta{pointer-events:auto;background:transparent;border:none;color:var(--accent-2);font-weight:700;padding:6px 8px;border-radius:8px;cursor:pointer;text-decoration:none}
+.tutorial-spot-label .label-cta:focus{outline:2px solid rgba(109,40,217,0.14);outline-offset:3px}
+.tutorial-spot-label .label-cta:hover{text-decoration:underline}
+
 @media (prefers-reduced-motion: reduce){
   .tutorial-spot-label{transition:none}
 }
+
+/* Light theme tweaks for tooltip label to ensure contrast */
+html[data-theme="light"] .tutorial-spot-label{background:linear-gradient(180deg,#ffffff,#f8fafc);color:#071022;border:1px solid rgba(11,17,24,0.06);box-shadow:0 10px 30px rgba(11,17,24,0.06)}
+html[data-theme="light"] .tutorial-spot-label .label-cta{color:#1d4ed8}
 
 /* If user requests reduced motion, make overlay instant and non-animated */
 @media (prefers-reduced-motion: reduce){

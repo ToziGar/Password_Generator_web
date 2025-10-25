@@ -1378,8 +1378,14 @@ function showSpotFor(node, labelText){
     try{
       const label = document.getElementById('pgw-tutorial-spot-label');
       if(label){
-        // Set text (short title preferred). Use plain text to avoid injection.
-        label.textContent = labelText ? String(labelText) : '';
+        // Set text into inner element
+        const textEl = label.querySelector('.label-text');
+        if(textEl) textEl.textContent = labelText ? String(labelText) : '';
+        // Wire CTA to show more info (use provided labelBody)
+        const cta = label.querySelector('.label-cta');
+        try{ if(label._ctaHandler && cta) cta.removeEventListener('click', label._ctaHandler); }catch(e){}
+        label._ctaHandler = (ev)=>{ try{ ev.preventDefault(); if(labelBody) showConfirmModal(labelBody, labelText || 'Información'); else showToast('Más información no disponible.', 'info'); }catch(e){ console.error('CTA handler failed', e); } };
+        if(cta) cta.addEventListener('click', label._ctaHandler);
         label.classList.remove('below');
         label.classList.remove('hidden');
         // Compute label size after adding text
@@ -1483,7 +1489,7 @@ async function renderTutorialStep(){
     if(s.highlight){
       const sels = Array.isArray(s.highlight) ? s.highlight : [s.highlight];
       const node = document.querySelector(sels[0]);
-        if(node) showSpotFor(node, s.title); else hideTutorialOverlay();
+    if(node) showSpotFor(node, s.title, s.body); else hideTutorialOverlay();
     } else {
       hideTutorialOverlay();
     }

@@ -157,31 +157,52 @@ function applyTheme(theme){
   }
 })();
 
-// Fallback for checkbox styling when :has() is not available: keep label[data-checked] in sync
-document.querySelectorAll('.checkbox-row label').forEach(label => {
-  try{
-    const cb = label.querySelector('input[type=checkbox]');
-    if(!cb) return;
-    const sync = ()=> label.setAttribute('data-checked', cb.checked ? 'true' : 'false');
-    // initialize
-    sync();
-    cb.addEventListener('change', sync);
-  }catch(e){/* ignore */}
-});
+// Robust checkbox label syncing & positional classes
+// This ensures labels receive data-checked and positional classes (.cb-*)
+// and keeps them updated when the user toggles options or when the DOM changes.
+function updateCheckboxLabels(){
+  const labels = Array.from(document.querySelectorAll('.checkbox-row > label'));
+  labels.forEach(label => {
+    try{
+      const cb = label.querySelector('input[type=checkbox]');
+      if(!cb) return;
+      // sync checked state (used as fallback when :has() isn't supported)
+      label.setAttribute('data-checked', cb.checked ? 'true' : 'false');
+      // ensure positional classes are present based on the input id
+      const id = (cb.id || '').toLowerCase();
+      label.classList.remove('cb-lower','cb-upper','cb-numbers','cb-symbols');
+      if(id.includes('lower')) label.classList.add('cb-lower');
+      else if(id.includes('upper')) label.classList.add('cb-upper');
+      else if(id.includes('number')) label.classList.add('cb-numbers');
+      else if(id.includes('symbol')) label.classList.add('cb-symbols');
+      // Listen for changes to keep data-checked up to date
+      if(!cb.__pgw_sync_attached){
+        cb.addEventListener('change', ()=>{ label.setAttribute('data-checked', cb.checked ? 'true' : 'false'); });
+        cb.__pgw_sync_attached = true;
+      }
+    }catch(e){/* ignore */}
+  });
+}
 
-// Add positional classes to checkbox labels so CSS can place them reliably
-document.querySelectorAll('.checkbox-row label').forEach(label => {
-  try{
-    const cb = label.querySelector('input[type=checkbox]');
-    if(!cb || !cb.id) return;
-    const id = cb.id.toLowerCase();
-    label.classList.remove('cb-lower','cb-upper','cb-numbers','cb-symbols');
-    if(id.includes('lower')) label.classList.add('cb-lower');
-    else if(id.includes('upper')) label.classList.add('cb-upper');
-    else if(id.includes('number')) label.classList.add('cb-numbers');
-    else if(id.includes('symbol')) label.classList.add('cb-symbols');
-  }catch(e){/* ignore */}
-});
+// Run on DOM ready and whenever we think the form might change
+if(document.readyState === 'loading'){
+  document.addEventListener('DOMContentLoaded', updateCheckboxLabels);
+}else{
+  updateCheckboxLabels();
+}
+
+// Also update on window resize (layout changes) and when focus returns (covers dynamic injection)
+window.addEventListener('resize', ()=>{ requestAnimationFrame(updateCheckboxLabels); });
+window.addEventListener('focus', ()=>{ requestAnimationFrame(updateCheckboxLabels); });
+
+// MutationObserver: if the checkbox-row children change, re-run the sync
+try{
+  const container = document.querySelector('.checkbox-row');
+  if(container){
+    const mo = new MutationObserver(()=>{ requestAnimationFrame(updateCheckboxLabels); });
+    mo.observe(container, { childList:true, subtree:true, attributes:true });
+  }
+}catch(e){/* ignore */}
 
 // Opciones
 const SYMBOLS = "!@#$%^&*()_+[]{}<>?,.;:-=_~";
@@ -354,6 +375,24 @@ const FUNNY_PHRASES = [
   'Requiere permiso del consejo de seguridad intergaláctico para probarla.',
   'Se recomienda contársela solo a tu espejo y a tu mejor amigo imaginario.',
   'Suena a leyenda urbana: "La contraseña que venció a los hackers".'
+];
+
+// Additional playful phrases to increase variety (user requested +5)
+FUNNY_PHRASES.push(
+  'Su contraseña ganó medalla de oro en las Olimpiadas del Caos.',
+  'Esta clave tiene más misterio que el final de una serie.',
+  'Incluso tus llaves se ponen nerviosas al verla.',
+  'Pide una siesta antes de intentar descifrarla — es agotadora.',
+  'Nivel: necesita un mapa y una brújula para ser crackeada.'
+);
+
+// Humorous messages specifically for weak passwords (still instructive)
+const WEAK_FUNNY_PHRASES = [
+  'Débil pero con actitud: añade longitud y algún símbolo para que se calle.',
+  'Esta es más frágil que un grito en una biblioteca — añade números y símbolos.',
+  'Casi, pero no: pon mayúsculas y símbolos o cámbiala por algo menos predecible.',
+  'Débil y coqueto — crece la longitud y mezcla tipos de caracteres para imponer respeto.',
+  'Tiene encanto, pero hackers no son fans; añade más longitud y variedad.'
 ];
 
 const IMPOSSIBLE_PHRASES = [
@@ -597,9 +636,12 @@ function funnyFor(seconds, entropy){
   if(entropy >= 128) return pickImpossible();
   if(entropy >= 60) return pickFunny();
   if(entropy >= 36) return pickFunny();
-  if(entropy >= 28) return 'Aceptable, pero considera aumentar la longitud o añadir símbolos.';
-  // <28
-  return 'Débil — aumenta la longitud y añade mayúsculas, números y símbolos.';
+  if(entropy >= 28) {
+    // Slightly weak/acceptable: return a funny-but-helpful suggestion
+    return randomFrom(WEAK_FUNNY_PHRASES) + ' (Sugerencia: longitud + símbolos)';
+  }
+  // <28: always humorous but instructive
+  return randomFrom(WEAK_FUNNY_PHRASES) + ' (Débil — aumenta longitud y mezcla tipos de caracteres.)';
 }
 
 function randomFrom(arr){ return arr[Math.floor(Math.random()*arr.length)]; }

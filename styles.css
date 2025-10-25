@@ -217,13 +217,17 @@ input[type=range]{width:100%}
 
 /* Layout for checkbox options: on wide screens show two stacked columns so 'Números' sits above 'Símbolos' */
 @media (min-width:640px){
-  /* Use classes assigned by JS to reliably position each checkbox label */
-  .checkbox-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:start}
-  .checkbox-row label{display:block;padding:10px 12px;border-radius:10px}
-  .checkbox-row .cb-lower{grid-column:1;grid-row:1}
-  .checkbox-row .cb-upper{grid-column:1;grid-row:2}
-  .checkbox-row .cb-numbers{grid-column:2;grid-row:1}
-  .checkbox-row .cb-symbols{grid-column:2;grid-row:2}
+  /* Use an explicit grid-template-areas layout so positioning is deterministic
+     even if other style rules or display types change. This forces:
+     lower | numbers
+     upper | symbols
+     We add !important to make this override cached/older styles if needed. */
+  .checkbox-row{display:grid !important;grid-template-columns:1fr 1fr !important;grid-template-rows:auto auto !important;gap:10px !important;align-items:start !important;grid-template-areas:"lower numbers" "upper symbols" !important}
+  .checkbox-row label{display:flex !important;padding:10px 12px;border-radius:10px;align-items:center;min-height:48px}
+  .checkbox-row .cb-lower{grid-area:lower !important}
+  .checkbox-row .cb-upper{grid-area:upper !important}
+  .checkbox-row .cb-numbers{grid-area:numbers !important}
+  .checkbox-row .cb-symbols{grid-area:symbols !important}
 }
 
 .crack-row{display:flex;gap:8px;align-items:center;margin-top:6px}
@@ -405,6 +409,15 @@ input[type=range]:focus::-webkit-slider-thumb{box-shadow:0 14px 28px rgba(109,40
 .checkbox-row label[data-checked="true"]::before{background:linear-gradient(90deg, rgba(6,182,212,0.08), rgba(124,58,237,0.08));border-color:rgba(109,40,217,0.12)}
 .checkbox-row label:focus-within::before, .checkbox-row label:focus-within::after{outline: none; box-shadow:0 6px 20px rgba(79,70,229,0.09);}
 .checkbox-row label .visually-hidden{position:absolute}
+
+/* Deterministic / seed input row: align label and seed input nicely */
+.deterministic-row{display:flex;align-items:center;gap:10px}
+.deterministic-row .seed-input{flex:1;min-width:0;padding:8px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:transparent;color:var(--text)}
+.deterministic-row .deterministic-toggle{padding:8px 12px;border-radius:10px;display:inline-flex;align-items:center;gap:8px}
+@media (max-width:640px){
+  .deterministic-row{flex-direction:column;align-items:stretch}
+  .deterministic-row .seed-input{width:100%}
+}
 
 /* Improve small inline checkbox style used elsewhere */
 .inline-checkbox{background:linear-gradient(180deg, rgba(255,255,255,0.015), rgba(255,255,255,0.006));border:1px solid rgba(255,255,255,0.04);padding:8px 10px;border-radius:10px}

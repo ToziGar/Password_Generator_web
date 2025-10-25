@@ -13,7 +13,17 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
   <!-- Bootstrap Icons for crisp SVG icons -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="styles.css?v=2">
+    <!-- Inline override to aggressively enforce checkbox layout in case of caching issues -->
+    <style>
+      @media (min-width:640px){
+        .checkbox-row{display:grid !important;grid-template-columns:1fr 1fr !important;grid-template-areas:"lower numbers" "upper symbols" !important;gap:10px !important}
+        .checkbox-row .cb-lower{grid-area:lower !important}
+        .checkbox-row .cb-upper{grid-area:upper !important}
+        .checkbox-row .cb-numbers{grid-area:numbers !important}
+        .checkbox-row .cb-symbols{grid-area:symbols !important}
+      }
+    </style>
   </head>
   <body>
     <a class="skip-link" href="#mainContent">Saltar al contenido</a>
@@ -50,10 +60,10 @@
         </div>
 
         <div class="row checkbox-row">
-          <label><input id="lower" type="checkbox" checked> Minúsculas</label>
-          <label><input id="upper" type="checkbox" checked> Mayúsculas</label>
-          <label><input id="numbers" type="checkbox" checked> Números</label>
-          <label><input id="symbols" type="checkbox" checked> Símbolos</label>
+          <label class="cb-lower"><input id="lower" type="checkbox" checked> Minúsculas</label>
+          <label class="cb-upper"><input id="upper" type="checkbox" checked> Mayúsculas</label>
+          <label class="cb-numbers"><input id="numbers" type="checkbox" checked> Números</label>
+          <label class="cb-symbols"><input id="symbols" type="checkbox" checked> Símbolos</label>
         </div>
 
         <div class="row passphrase-row">
@@ -101,9 +111,9 @@
           </select>
           <div id="kdfEta" class="muted small" aria-live="polite">ETA estimada: —</div>
         </div>
-        <div class="row" style="margin-top:8px;gap:8px;align-items:center">
-          <label><input id="deterministic" type="checkbox"> Generador determinista (semilla)</label>
-          <input id="seedInput" type="text" placeholder="Introduce semilla para reproducir" style="flex:1">
+        <div class="row deterministic-row" style="margin-top:8px;gap:8px;align-items:center">
+          <label class="inline-checkbox deterministic-toggle"><input id="deterministic" type="checkbox"> Modo reproducible (semilla)</label>
+          <input id="seedInput" class="seed-input" type="text" placeholder="Introduce semilla para reproducir">
         </div>
   </section>
 
@@ -265,7 +275,7 @@
           // Defer icon replacement until DOM is ready
           document.addEventListener('DOMContentLoaded', ()=>{ try{ if(window.feather) window.feather.replace(); }catch(e){} });
         </script>
-        <script src="script.js"></script>
+  <script src="script.js?v=2"></script>
       <!-- Blocking overlay shown during long KDF ops (hidden by default) -->
       <div id="blockingOverlay" style="display:none" aria-hidden="true">
         <div class="overlay-content">

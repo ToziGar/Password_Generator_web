@@ -580,11 +580,17 @@ IMPENETRABLE_PHRASES.push(
 
 // Helper: pick phrase based on entropy (bits)
 function pickPhraseForEntropy(entropy){
+  // New thresholds:
+  // - Muy débil: entropy < 28
+  // - Débil: 28 <= entropy < 36
+  // - Aceptable: 36 <= entropy < 60
+  // - Buena: 60 <= entropy < 128
+  // - Impenetrable: entropy >= 128
   if(!isFinite(entropy)) return randomFrom(IMPENETRABLE_PHRASES);
-  if(entropy < 20) return randomFrom(VERY_WEAK_PHRASES);
-  if(entropy < 28) return randomFrom(WEAK_PHRASES);
-  if(entropy < 36) return randomFrom(ACCEPTABLE_PHRASES);
-  if(entropy < 60) return randomFrom(GOOD_PHRASES);
+  if(entropy < 28) return randomFrom(VERY_WEAK_PHRASES);
+  if(entropy < 36) return randomFrom(WEAK_PHRASES);
+  if(entropy < 60) return randomFrom(ACCEPTABLE_PHRASES);
+  if(entropy < 128) return randomFrom(GOOD_PHRASES);
   return randomFrom(IMPENETRABLE_PHRASES);
 }
 
@@ -767,12 +773,16 @@ function analyzePassword(pw){
 }
 
 function evaluateStrength(entropy){
-  // Map entropy to five levels requested by the user:
-  // Muy débil, Débil, Aceptable, Buena, Impenetrable
-  if(entropy < 20) return {label:'Muy débil', colorPct:12};
-  if(entropy < 28) return {label:'Débil', colorPct:28};
-  if(entropy < 36) return {label:'Aceptable', colorPct:45};
-  if(entropy < 60) return {label:'Buena', colorPct:75};
+  // New thresholds (aligned with phrase selection):
+  // - Muy débil: entropy < 28
+  // - Débil: 28 <= entropy < 36
+  // - Aceptable: 36 <= entropy < 60
+  // - Buena: 60 <= entropy < 128
+  // - Impenetrable: entropy >= 128
+  if(!isFinite(entropy) || entropy < 28) return {label:'Muy débil', colorPct:12};
+  if(entropy < 36) return {label:'Débil', colorPct:28};
+  if(entropy < 60) return {label:'Aceptable', colorPct:45};
+  if(entropy < 128) return {label:'Buena', colorPct:75};
   return {label:'Impenetrable', colorPct:100};
 }
 

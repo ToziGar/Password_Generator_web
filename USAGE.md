@@ -27,3 +27,11 @@ Nuevas funciones:
 - Estimaciones: puedes elegir entre varias tasas de ataque (Online, Botnets, GPU cluster, Super cluster) o introducir una tasa personalizada; la UI mostrará varias estimaciones simultáneas.
 - Frases graciosas: se muestran frases aleatorias para dar feedback; la implementación evita repetir frases hasta agotar la lista.
 - Animaciones: medidor animado, animación al copiar y confetti si la contraseña tiene entropía >= 128 bits.
+
+Umbrales de entropía usados por la interfaz:
+
+- Muy débil: < 28 bits
+- Débil: 28–35 bits
+- Aceptable: 36–59 bits
+- Buena: 60–127 bits
+- Impenetrable: ≥ 128 bits (confetti y mensaje elogioso)

@@ -130,7 +130,11 @@
           <div class="meter-bar" id="meterBar"></div>
         </div>
         <div class="meter-info">
-          <div id="strengthLabel">Fuerza: —</div>
+          <div id="strengthLabel">Fuerza: —
+            <button id="strengthInfoBtn" class="info-btn" type="button" aria-describedby="desc-strength" data-tooltip="Niveles de seguridad: Muy débil (<28 bits), Débil (28–35 bits), Aceptable (36–59 bits), Buena (60–127 bits), Impenetrable (>=128 bits).">
+              <i data-feather="info" aria-hidden="true"></i>
+            </button>
+          </div>
           <div id="entropyLabel">Entropía: — bits</div>
         </div>
 
@@ -223,6 +227,7 @@
           </div>
         </div>
       </div>
+  <div id="desc-strength" class="visually-hidden">Niveles de seguridad aproximados basados en entropía calculada: Muy débil &lt; 28 bits; Débil 28–35 bits; Aceptable 36–59 bits; Buena 60–127 bits; Impenetrable ≥128 bits. Estas bandas se usan para seleccionar mensajes y activar animaciones (por ejemplo, confetti en ≥128 bits).</div>
       <!-- Tutorial modal (interactive guided mode) -->
       <div id="tutorialModal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="tutorialTitle" style="display:none">
         <div class="modal-dialog tutorial-dialog">
@@ -231,6 +236,7 @@
             <div id="tutorialStepTitle" style="font-weight:700;margin-bottom:8px">Paso 1</div>
             <div id="tutorialStepBody">Bienvenido — este tutorial te guiará para crear una passphrase segura.</div>
                 <div id="tutorialEntropy" role="status" aria-live="polite" aria-atomic="true" style="margin-top:10px;color:var(--muted);font-size:0.95rem">Entropía actual: —</div>
+        <div style="margin-top:8px;color:var(--muted);font-size:0.9rem">Bandas de seguridad (bits de entropía): Muy débil &lt;28, Débil 28–35, Aceptable 36–59, Buena 60–127, Impenetrable ≥128 — apunta a ≥128 para máxima protección.</div>
           </div>
           <div class="modal-actions">
             <button id="tutorialPrev" class="btn">Anterior</button>

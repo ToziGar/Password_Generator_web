@@ -410,13 +410,16 @@ input[type=range]:focus::-webkit-slider-thumb{box-shadow:0 14px 28px rgba(109,40
 .checkbox-row label:focus-within::before, .checkbox-row label:focus-within::after{outline: none; box-shadow:0 6px 20px rgba(79,70,229,0.09);}
 .checkbox-row label .visually-hidden{position:absolute}
 
-/* Deterministic / seed input row: align label and seed input nicely */
-.deterministic-row{display:flex;align-items:center;gap:10px}
-.deterministic-row .seed-input{flex:1;min-width:0;padding:8px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:transparent;color:var(--text)}
+/* Deterministic / seed input row: place the seed input below the label for clearer layout */
+.deterministic-row{display:flex;flex-direction:column;gap:8px}
+.deterministic-top{display:block}
+.deterministic-bottom{display:block}
+.deterministic-row .seed-input{width:100%;padding:8px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:transparent;color:var(--text);min-width:0}
 .deterministic-row .deterministic-toggle{padding:8px 12px;border-radius:10px;display:inline-flex;align-items:center;gap:8px}
-@media (max-width:640px){
-  .deterministic-row{flex-direction:column;align-items:stretch}
-  .deterministic-row .seed-input{width:100%}
+
+@media (min-width:900px){
+  /* On very wide screens keep seed input slightly narrower to match card visual */
+  .deterministic-row .seed-input{max-width:420px}
 }
 
 /* Improve small inline checkbox style used elsewhere */

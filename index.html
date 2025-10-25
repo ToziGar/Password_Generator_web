@@ -111,9 +111,13 @@
           </select>
           <div id="kdfEta" class="muted small" aria-live="polite">ETA estimada: —</div>
         </div>
-        <div class="row deterministic-row" style="margin-top:8px;gap:8px;align-items:center">
-          <label class="inline-checkbox deterministic-toggle"><input id="deterministic" type="checkbox"> Modo reproducible (semilla)</label>
-          <input id="seedInput" class="seed-input" type="text" placeholder="Introduce semilla para reproducir">
+        <div class="row deterministic-row" style="margin-top:8px">
+          <div class="deterministic-top">
+            <label class="inline-checkbox deterministic-toggle"><input id="deterministic" type="checkbox"> Modo reproducible (semilla)</label>
+          </div>
+          <div class="deterministic-bottom">
+            <input id="seedInput" class="seed-input" type="text" placeholder="Introduce semilla para reproducir">
+          </div>
         </div>
   </section>
 

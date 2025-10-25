@@ -157,6 +157,120 @@ function applyTheme(theme){
   }
 })();
 
+// Lightweight tooltip system for `.info-btn[data-tooltip]` elements
+// Creates a shared tooltip element and positions it near the target on hover/focus/tap.
+;(function initInfoTooltips(){
+  function createTooltip(){
+    let t = document.getElementById('pgw-tooltip');
+    if(t) return t;
+    t = document.createElement('div');
+    t.id = 'pgw-tooltip';
+    t.className = 'pgw-tooltip';
+    t.setAttribute('role','tooltip');
+    t.style.display = 'block';
+    // inner content and arrow
+    const inner = document.createElement('div');
+    inner.className = 'pgw-tooltip-inner';
+    t.appendChild(inner);
+    const arrow = document.createElement('div');
+    arrow.className = 'arrow';
+    t.appendChild(arrow);
+    document.body.appendChild(t);
+    return t;
+  }
+
+  function showTooltip(target, text){
+    const tt = createTooltip();
+    const inner = tt.querySelector('.pgw-tooltip-inner');
+    inner.textContent = text;
+    // respect theme by mirroring html[data-theme]
+    if(document.documentElement.getAttribute('data-theme') === 'light') tt.setAttribute('data-theme','light');
+    else tt.removeAttribute('data-theme');
+
+    // compute position: prefer above the target, fall back to below
+    const rect = target.getBoundingClientRect();
+    const ttRect = tt.getBoundingClientRect();
+    const margin = 8;
+    // try above
+    let top = window.scrollY + rect.top - ttRect.height - margin;
+    let left = window.scrollX + rect.left + (rect.width/2) - (ttRect.width/2);
+    // clamp left
+    left = Math.max(8 + window.scrollX, Math.min(left, window.scrollX + document.documentElement.clientWidth - ttRect.width - 8));
+    // if not enough space above, place below
+    if(top < window.scrollY + 8){
+      top = window.scrollY + rect.bottom + margin;
+      tt.classList.add('bottom');
+    }else{
+      tt.classList.remove('bottom');
+    }
+    tt.style.left = `${Math.round(left)}px`;
+    tt.style.top = `${Math.round(top)}px`;
+    // small delay for geometry stabilization
+    requestAnimationFrame(()=> tt.classList.add('show'));
+  }
+
+  function hideTooltip(){
+    const tt = document.getElementById('pgw-tooltip');
+    if(!tt) return;
+    tt.classList.remove('show');
+    // remove after transition
+    setTimeout(()=>{ try{ if(tt && tt.parentNode) tt.parentNode.removeChild(tt); }catch(e){} }, 260);
+  }
+
+  function attach(elm){
+    if(!elm || elm.__pgw_tooltip_attached) return;
+    const txt = elm.getAttribute('data-tooltip') || elm.getAttribute('title') || '';
+    if(!txt) return;
+    // avoid default title popup
+    if(elm.getAttribute('title')) elm.dataset._pgw_title = elm.getAttribute('title');
+    elm.removeAttribute('title');
+
+    let touchActive = false;
+    const onEnter = (e)=>{ if(touchActive) return; showTooltip(elm, txt); };
+    const onLeave = (e)=>{ if(touchActive) return; hideTooltip(); };
+    const onFocus = (e)=> showTooltip(elm, txt);
+    const onBlur = (e)=> hideTooltip();
+    const onClickTouch = (e)=>{
+      // On touch devices, toggle tooltip on tap (but allow default button behavior if already showing)
+      touchActive = true;
+      const existing = document.getElementById('pgw-tooltip');
+      if(existing && existing.classList.contains('show')){ hideTooltip(); touchActive = false; }
+      else { showTooltip(elm, txt); setTimeout(()=>{ hideTooltip(); touchActive = false; }, 2500); }
+      e.stopPropagation();
+    };
+
+    elm.addEventListener('mouseenter', onEnter);
+    elm.addEventListener('mouseleave', onLeave);
+    elm.addEventListener('focus', onFocus);
+    elm.addEventListener('blur', onBlur);
+    elm.addEventListener('click', onClickTouch);
+    // hide tooltip on global interactions
+    document.addEventListener('scroll', hideTooltip, true);
+    document.addEventListener('touchstart', hideTooltip, {passive:true});
+
+    elm.__pgw_tooltip_attached = true;
+  }
+
+  // Attach on DOM ready; also attach to future nodes (simple mutation observer)
+  document.addEventListener('DOMContentLoaded', ()=>{
+    Array.from(document.querySelectorAll('.info-btn[data-tooltip]')).forEach(attach);
+    // small mutation observer to attach tooltips to dynamically added info buttons
+    try{
+      const mo = new MutationObserver((mutations)=>{
+        mutations.forEach(m=>{
+          Array.from((m.addedNodes||[])).forEach(n=>{
+            if(n && n.querySelectorAll){
+              Array.from(n.querySelectorAll('.info-btn[data-tooltip]')).forEach(attach);
+            }
+            if(n && n.classList && n.classList.contains && n.classList.contains('info-btn') && n.getAttribute('data-tooltip')) attach(n);
+          });
+        });
+      });
+      mo.observe(document.body, {childList:true, subtree:true});
+    }catch(e){/* ignore */}
+  });
+})();
+
 // Robust checkbox label syncing & positional classes
 // This ensures labels receive data-checked and positional classes (.cb-*)
 // and keeps them updated when the user toggles options or when the DOM changes.

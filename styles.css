@@ -233,6 +233,21 @@ input[type=range]{width:100%}
 .crack{margin-top:12px;color:var(--muted)}
 .footer{text-align:center;color:var(--muted);margin-top:8px}
 
+/* Small inline info-button and tooltip used across the UI */
+.info-btn{display:inline-flex;align-items:center;justify-content:center;background:transparent;border:none;padding:6px;margin-left:8px;border-radius:8px;color:var(--muted);cursor:pointer}
+.info-btn:focus{outline:3px solid rgba(124,58,237,0.12);outline-offset:3px}
+
+/* Shared tooltip element (created by JS). Uses theme tokens for colors */
+.pgw-tooltip{position:fixed;z-index:120;background:linear-gradient(180deg,rgba(11,17,24,0.92),rgba(8,12,18,0.96));color:var(--text);padding:8px 10px;border-radius:8px;font-size:0.92rem;box-shadow:0 8px 30px rgba(3,8,20,0.5);max-width:320px;pointer-events:none;opacity:0;transform:translateY(6px) scale(0.98);transition:opacity 200ms cubic-bezier(.2,.9,.2,1),transform 220ms cubic-bezier(.2,.9,.2,1)}
+.pgw-tooltip[data-theme="light"]{background:linear-gradient(180deg,#fff,#fbfdff);color:var(--text);box-shadow:0 8px 26px rgba(3,8,20,0.06)}
+.pgw-tooltip.show{opacity:1;transform:translateY(0) scale(1);pointer-events:auto}
+.pgw-tooltip .arrow{position:absolute;width:10px;height:10px;background:inherit;transform:rotate(45deg);left:calc(50% - 5px);top:-5px;border-radius:2px}
+.pgw-tooltip.bottom .arrow{top:auto;bottom:-5px}
+
+@media (max-width:640px){
+  .pgw-tooltip{font-size:0.9rem;max-width:260px}
+}
+
 @media (max-width:640px){.container{padding:12px}.actions{flex-direction:column;gap:8px;align-items:stretch}.passphrase-row{flex-direction:column;align-items:flex-start}}
 @media (max-width:900px){.container{padding:16px}.grid{grid-template-columns:1fr}.actions{flex-direction:column;gap:10px;align-items:stretch}.passphrase-row{flex-direction:column;align-items:flex-start}}
 

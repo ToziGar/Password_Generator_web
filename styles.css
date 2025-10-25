@@ -254,6 +254,15 @@ input[type=range]{width:100%}
 .small-controls--group .controls-left{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
 .small-controls--group .controls-right{display:flex;gap:8px;align-items:center;flex:1;justify-content:flex-end}
 
+/* Manual password controls: stack action buttons below the input (like deterministic seed layout) */
+.controls-right.manual-row{display:flex;flex-direction:column;align-items:stretch;gap:8px}
+.controls-right.manual-row .manual-top{width:100%}
+.controls-right.manual-row .manual-bottom{display:flex;gap:8px;align-items:center;justify-content:flex-end;flex-wrap:wrap}
+@media (max-width:640px){
+  .controls-right.manual-row .manual-bottom{justify-content:flex-start}
+  .controls-right.manual-row .manual-bottom .btn{flex:0 0 auto}
+}
+
 /* Flex input helper */
 .flex-input{flex:1;min-width:160px;padding:8px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:transparent;color:var(--text)}
 

@@ -170,11 +170,15 @@
                   </button>
                 </label>
               </div>
-              <div class="controls-right">
-                <input id="customPw" class="flex-input" type="text" placeholder="Pega o escribe una contraseña para evaluar">
-                <button id="clearCustom" class="btn">Limpiar</button>
-                <button id="evalCustom" class="btn">Evaluar</button>
-                <button id="hibpCheck" class="btn">Comprobar ahora</button>
+              <div class="controls-right manual-row">
+                <div class="manual-top">
+                  <input id="customPw" class="flex-input" type="text" placeholder="Pega o escribe una contraseña para evaluar">
+                </div>
+                <div class="manual-bottom">
+                  <button id="clearCustom" class="btn">Limpiar</button>
+                  <button id="evalCustom" class="btn">Evaluar</button>
+                  <button id="hibpCheck" class="btn">Comprobar ahora</button>
+                </div>
               </div>
               <div id="desc-useCustom" class="visually-hidden">Activa para pegar y evaluar una contraseña manualmente.</div>
               <div id="desc-hibpOptIn" class="visually-hidden">Habilita comprobar si la contraseña apareció en brechas conocidas. Solo se envía el prefijo SHA-1 según el protocolo k-anonymity.</div>

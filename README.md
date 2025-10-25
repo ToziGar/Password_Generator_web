@@ -120,48 +120,73 @@ Cómo ejecutar (local)
 
 ```powershell
 python -m http.server 8000
-# Abre: http://localhost:8000
+# Password Generator — Password_Generator_web
+
+**Versión:** 1.0 (2025-10-25)
+
+Resumen
+-------
+Aplicación web estática (HTML/CSS/JS) para generar contraseñas y passphrases seguras en el navegador. Todas las operaciones criptográficas se realizan en el cliente (Web Crypto + Web Worker o fallback blob). Incluye generación determinista por semilla, export/import cifrado, evaluación de fuerza y pruebas visuales con Playwright.
+
+Principales características
+--------------------------
+- Generación configurable de contraseñas y passphrases (longitud, tipos de caracteres, modo frase).
+- Modo reproducible (semilla) mediante HMAC‑DRBG ejecutado en worker.
+- Evaluación de entropía, sugerencias y estimaciones de tiempo de crack para diferentes tasas de ataque.
+- HIBP opt‑in (k‑anonymity): solo se envía el prefijo SHA‑1 (5 hex) si el usuario lo permite.
+- Export / Import cifrado con PBKDF2 + AES‑GCM (iteraciones configurables).
+- Operaciones costosas en Web Worker con fallback embebido para entornos limitados.
+- Enfoque en accesibilidad: focus traps, aria‑live y soporte prefers‑reduced‑motion.
+
+Cambios recientes
+-----------------
+- Mejoras visuales y de accesibilidad (botones, tarjetas, estados de foco).
+- Corrección y persistencia del tema claro/oscuro (localStorage) y ajustes para que el tema claro afecte tutoriales y toasts.
+- Layout de checkboxes robusto: en pantallas anchas las opciones quedan en dos columnas y "Símbolos" aparece debajo de "Números"; se añadieron clases posicionales y una regla CSS determinista (`grid-template-areas`).
+- Mejoras en el control "Modo reproducible (semilla)" y en el campo de semilla (alineación y estilos).
+- Añadidas frases humorísticas adicionales y mensajes divertidos también para contraseñas débiles.
+- Cache-busting ligero: se añadieron query params a `styles.css` y `script.js` y un fallback inline para forzar la disposición mientras se actualiza la caché del navegador.
+
+Cómo ejecutar localmente
+------------------------
+Se recomienda servir la carpeta para evitar limitaciones al usar `Worker` o funcionalidades del portapapeles.
+
+1. Servir (PowerShell):
+
+```powershell
+python -m http.server 8000
+# Abrir: http://localhost:8000
 ```
 
-2. (Opcional) Instalar dependencias para tests y Playwright:
+2. (Opcional) Instalar dependencias para tests:
 
 ```powershell
 npm install
 npx playwright install
 ```
 
-Ejecutar pruebas (Playwright)
------------------------------
+3. Ejecutar pruebas Playwright:
+
 ```powershell
 npx playwright test --project=chromium
 ```
 
-Los reportes y artefactos se guardan en `playwright-report/`, `test-results/` y `tests/screenshots/`.
-
-Accesibilidad
--------------
-Se integró `axe-core` en la suite Playwright para comprobaciones automáticas de WCAG2AA en los flujos críticos (pantalla principal, tutorial y modales). Aun así, recomiendo pruebas manuales con lector de pantalla y navegación por teclado.
-
-Formato del backup cifrado
--------------------------
-Ejemplo simplificado:
-
-```json
-{
-  "version": 1,
-  "kdf": "pbkdf2",
-  "salt": "<base64>",
-  "iterations": 200000,
-  "iv": "<base64>",
-  "ciphertext": "<base64>"
-}
-```
-
-CI
---
-Existe un workflow en `.github/workflows/playwright.yml` que ejecuta Playwright en push/PRs y sube artifacts para diagnóstico. Se puede ampliar para bloquear PRs con diffs visuales.
+Consejos para desarrolladores
+-----------------------------
+- Mantén los IDs y selectores (p. ej. `#numbers`, `#symbols`, `.checkbox-row`) para no romper las pruebas visuales.
+- Si modificas la parte criptográfica (worker o fallback), prueba en entornos con y sin capacidad de crear `Worker`.
+- Cuando cambies estilos globales, actualiza la versión en las URLs (`?v=`) para forzar recarga en pruebas y despliegues.
 
 Cómo contribuir
 ---------------
-- Haz fork y crea una rama por funcionalidad.
-- Si tocas criptografía, añade tests y justificación técnica.
+1. Haz fork y crea una rama por funcionalidad (`feature/mi-cambio`).
+2. Añade tests (Playwright) si tu cambio altera UI o flujos críticos.
+3. Abre un PR describiendo la motivación, cambios y pruebas realizadas.
+
+Licencia
+--------
+Revisa el archivo `LICENSE` para los términos de uso.
+
+Contacto
+--------
+Abre un issue en el repositorio con pasos para reproducir y capturas si detectas un problema visual o funcional.

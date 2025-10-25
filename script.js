@@ -169,6 +169,20 @@ document.querySelectorAll('.checkbox-row label').forEach(label => {
   }catch(e){/* ignore */}
 });
 
+// Add positional classes to checkbox labels so CSS can place them reliably
+document.querySelectorAll('.checkbox-row label').forEach(label => {
+  try{
+    const cb = label.querySelector('input[type=checkbox]');
+    if(!cb || !cb.id) return;
+    const id = cb.id.toLowerCase();
+    label.classList.remove('cb-lower','cb-upper','cb-numbers','cb-symbols');
+    if(id.includes('lower')) label.classList.add('cb-lower');
+    else if(id.includes('upper')) label.classList.add('cb-upper');
+    else if(id.includes('number')) label.classList.add('cb-numbers');
+    else if(id.includes('symbol')) label.classList.add('cb-symbols');
+  }catch(e){/* ignore */}
+});
+
 // Opciones
 const SYMBOLS = "!@#$%^&*()_+[]{}<>?,.;:-=_~";
 const LOWER = 'abcdefghijklmnopqrstuvwxyz';

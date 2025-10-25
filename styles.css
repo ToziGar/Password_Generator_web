@@ -217,12 +217,13 @@ input[type=range]{width:100%}
 
 /* Layout for checkbox options: on wide screens show two stacked columns so 'Números' sits above 'Símbolos' */
 @media (min-width:640px){
+  /* Use classes assigned by JS to reliably position each checkbox label */
   .checkbox-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:start}
   .checkbox-row label{display:block;padding:10px 12px;border-radius:10px}
-  .checkbox-row label:nth-child(1){grid-column:1;grid-row:1}
-  .checkbox-row label:nth-child(2){grid-column:1;grid-row:2}
-  .checkbox-row label:nth-child(3){grid-column:2;grid-row:1}
-  .checkbox-row label:nth-child(4){grid-column:2;grid-row:2}
+  .checkbox-row .cb-lower{grid-column:1;grid-row:1}
+  .checkbox-row .cb-upper{grid-column:1;grid-row:2}
+  .checkbox-row .cb-numbers{grid-column:2;grid-row:1}
+  .checkbox-row .cb-symbols{grid-column:2;grid-row:2}
 }
 
 .crack-row{display:flex;gap:8px;align-items:center;margin-top:6px}

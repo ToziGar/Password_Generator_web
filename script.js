@@ -1375,9 +1375,25 @@ function ensureTutorialOverlay(){
 function hideTutorialOverlay(){
   const ov = document.getElementById('pgw-tutorial-overlay');
   if(!ov) return;
-  try{ ov.classList.remove('visible'); }catch(e){}
-  const spot = document.getElementById('pgw-tutorial-spot'); if(spot) try{ spot.style.width = '0px'; spot.style.height = '0px'; spot.style.left = '-9999px'; spot.style.top = '-9999px'; }catch(e){}
-  const label = document.getElementById('pgw-tutorial-spot-label'); if(label) try{ label.classList.add('hidden'); label.style.left = '-9999px'; label.style.top = '-9999px'; }catch(e){}
+  try{ ov.classList.remove('visible'); ov.style.opacity = '0'; ov.style.pointerEvents = 'none'; }catch(e){}
+  // cleanup spot and label event handlers and remove from DOM to avoid any lingering visual artifacts
+  try{
+    const spot = document.getElementById('pgw-tutorial-spot');
+    if(spot){ try{ spot.style.width = '0px'; spot.style.height = '0px'; spot.style.left = '-9999px'; spot.style.top = '-9999px'; }catch(e){}
+      try{ if(spot.parentNode) spot.parentNode.removeChild(spot); }catch(e){}
+    }
+  }catch(e){}
+  try{
+    const label = document.getElementById('pgw-tutorial-spot-label');
+    if(label){
+      // remove CTA handler if present
+      try{ const cta = label.querySelector('.label-cta'); if(cta && label._ctaHandler) cta.removeEventListener('click', label._ctaHandler); }catch(e){}
+      try{ label.classList.add('hidden'); label.style.left = '-9999px'; label.style.top = '-9999px'; }catch(e){}
+      try{ if(label.parentNode) label.parentNode.removeChild(label); }catch(e){}
+    }
+  }catch(e){}
+  // finally remove the overlay element entirely after a short delay to allow CSS transition to finish
+  try{ setTimeout(()=>{ try{ const o = document.getElementById('pgw-tutorial-overlay'); if(o && o.parentNode) o.parentNode.removeChild(o); }catch(e){} }, 260); }catch(e){}
 }
 
 function showSpotFor(node, labelText){

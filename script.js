@@ -204,12 +204,20 @@ function syncManualControls(){
     Array.from(manual.querySelectorAll('input,button,select,textarea')).forEach(i=>{ i.disabled = false; });
     // focus the input for convenience
     setTimeout(()=>{ try{ if(customPw && typeof customPw.focus === 'function') customPw.focus(); }catch(e){} }, 40);
+    // animate manual-bottom buttons with slight stagger
+    const btns = Array.from(manual.querySelectorAll('.manual-bottom .btn'));
+    btns.forEach((b, idx)=>{ setTimeout(()=> b.classList.add('show-in'), 60 + idx*60); });
+    // persist preference
+    try{ localStorage.setItem('pgw-useCustom', open ? '1' : '0'); }catch(e){}
   }else{
     manual.classList.remove('expanded');
     manual.classList.add('collapsed');
     manual.setAttribute('aria-hidden','true');
     // disable contained controls to remove from tab order and prevent accidental use
     Array.from(manual.querySelectorAll('input,button,select,textarea')).forEach(i=>{ if(i.id !== 'manualControls') i.disabled = true; });
+    // remove show-in class from buttons
+    Array.from(manual.querySelectorAll('.manual-bottom .btn')).forEach(b=> b.classList.remove('show-in'));
+    try{ localStorage.setItem('pgw-useCustom','0'); }catch(e){}
   }
 }
 
@@ -220,6 +228,14 @@ try{
     syncManualControls();
     if(useCustom){
       useCustom.addEventListener('change', syncManualControls);
+      // restore persisted preference if available
+      try{
+        const saved = localStorage.getItem('pgw-useCustom');
+        if(saved === '1'){ useCustom.checked = true; }
+        else if(saved === '0'){ useCustom.checked = false; }
+        // re-sync after applying saved state
+        syncManualControls();
+      }catch(e){}
     }
   });
 }catch(e){/* ignore */}
@@ -758,6 +774,54 @@ function funnyFor(seconds, entropy){
   }
 }
 
+// Track last phrase to avoid immediate repetition
+window.__pgw_last_phrase = window.__pgw_last_phrase || '';
+
+function showFunnyPhrase(text){
+  // Avoid immediate repeat; if same as last, try to append a secondary funny line
+  if(!text) return;
+  if(text === window.__pgw_last_phrase){
+    // pick a secondary short suffix from FUNNY_PHRASES
+    const extra = randomFrom(FUNNY_PHRASES);
+    text = text + ' — ' + extra;
+  }
+  window.__pgw_last_phrase = text;
+  // Update UI (existing element 'funnyEl') with animation
+  try{
+    if(typeof funnyEl !== 'undefined' && funnyEl){
+      funnyEl.classList.remove('show');
+      void funnyEl.offsetWidth; // reflow
+      funnyEl.textContent = text;
+      funnyEl.classList.add('show');
+      // ensure screen readers notice the text change (aria-live already set in HTML)
+    }
+  }catch(e){ console.warn('showFunnyPhrase error', e); }
+}
+
+// Normalise level string for data attributes and CSS class names
+function normalizeLevel(label){
+  if(!label) return 'impenetrable';
+  return label.toString().toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+}
+
+// Update meter and strength label visuals according to entropy and computed strength
+function setStrengthUI(entropy, strength){
+  try{
+    const levelNorm = normalizeLevel(strength.label);
+    // set meter data-level attribute (container .meter)
+    const meter = document.querySelector('.meter');
+    if(meter) meter.setAttribute('data-level', levelNorm);
+    // set strength label class for coloring
+    if(strengthLabel){
+      strengthLabel.className = 'strength-label';
+      strengthLabel.classList.add('lv-' + levelNorm);
+      // ensure label text is still correct (render handles text)
+    }
+    // accessibility: update aria on meter bar
+    if(meterBar) meterBar.setAttribute('aria-valuenow', Math.round(entropy));
+  }catch(e){/* ignore */}
+}
+
 function randomFrom(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
 
 // Secure random integer in [0, max) using Web Crypto (avoids bias with rejection sampling)
@@ -814,6 +878,8 @@ async function render(){
   const strength = evaluateStrength(entropy);
   strengthLabel.textContent = `Fuerza: ${strength.label}`;
   meterBar.style.width = `${strength.colorPct}%`;
+  // update UI visuals (classes/data-attrs)
+  setStrengthUI(entropy, strength);
 
   // Mostrar solo la estimación para la tasa seleccionada/personalizada
   let custom = Number(customRate.value);

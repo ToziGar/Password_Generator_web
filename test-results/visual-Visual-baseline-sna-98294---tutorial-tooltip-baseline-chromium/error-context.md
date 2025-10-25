@@ -1,0 +1,137 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e1]:
+  - link "Saltar al contenido" [ref=e2] [cursor=pointer]:
+    - /url: "#mainContent"
+  - region [ref=e3]:
+    - generic [ref=e4]: Esta página procesa contraseñas localmente en tu navegador y no las envía a servidores por defecto. Puedes desactivar este aviso.
+    - button "Entendido" [ref=e6] [cursor=pointer]
+  - main [ref=e7]:
+    - generic [ref=e9]:
+      - img [ref=e11]
+      - generic [ref=e13]:
+        - heading [level=1] [ref=e14]: Generador de Contraseñas
+        - paragraph [ref=e15]: Crea contraseñas y frases seguras con controles finos, estimaciones de seguridad y herramientas para mantener tus claves a salvo.
+      - img [ref=e17] [cursor=pointer]:
+        - img [ref=e18]
+        - text: Tema
+    - generic [ref=e24]:
+      - generic [ref=e25]:
+        - generic [ref=e26]:
+          - generic [ref=e27]: "Longitud: 24"
+          - slider [ref=e28]: "24"
+        - generic [ref=e29]:
+          - generic [ref=e30]:
+            - checkbox [checked] [ref=e31]
+            - text: Minúsculas
+          - generic [ref=e32]:
+            - checkbox [checked] [ref=e33]
+            - text: Mayúsculas
+          - generic [ref=e34]:
+            - checkbox [checked] [ref=e35]
+            - text: Números
+          - generic [ref=e36]:
+            - checkbox [checked] [ref=e37]
+            - text: Símbolos
+        - generic [ref=e38]:
+          - generic [ref=e39]:
+            - checkbox [ref=e40]
+            - text: Usar frase (palabras aleatorias)
+          - generic [ref=e41]: "Palabras: 4"
+          - slider [disabled] [ref=e42]: "4"
+        - generic [ref=e43]:
+          - generic [ref=e44]:
+            - button [ref=e45] [cursor=pointer]: Generar
+            - button [ref=e46] [cursor=pointer]:
+              - img [ref=e47]
+            - button [ref=e51] [cursor=pointer]:
+              - img [ref=e52]
+          - generic [ref=e55]:
+            - button [ref=e56] [cursor=pointer]:
+              - img [ref=e57]
+              - text: Tutorial
+            - button [ref=e60] [cursor=pointer]:
+              - img [ref=e61]
+              - text: Exportar
+            - button [ref=e64] [cursor=pointer]:
+              - img [ref=e65]
+              - text: Importar
+        - generic [ref=e68]:
+          - generic [ref=e69]: "Iteraciones KDF:"
+          - combobox [ref=e70]
+          - generic [ref=e71]: "ETA estimada: 2 s"
+        - generic [ref=e72]:
+          - generic [ref=e73]:
+            - checkbox [ref=e74]
+            - text: Generador determinista (semilla)
+          - textbox [ref=e75]:
+            - /placeholder: Introduce semilla para reproducir
+      - generic [ref=e76]:
+        - textbox [ref=e78]: "kq9++Pz{gnfm^KURklkzYb[f"
+        - generic [ref=e81]:
+          - generic [ref=e82]: "Fuerza: Prácticamente imposible"
+          - generic [ref=e83]: "Entropía: 155 bits"
+        - generic [ref=e84]:
+          - text: "Estimaciones tiempo de crack:"
+          - generic [ref=e85]:
+            - combobox [ref=e86]
+            - generic [ref=e87]: "o personalizar (ej. 1e10):"
+            - textbox [ref=e88]:
+              - /placeholder: "1e10"
+              - text: "1e10"
+          - generic [ref=e91]: "10.00G ops/s: 9.67e+28 años"
+          - generic [ref=e92]: Esta es la definición de "prácticamente imposible" — felicidades, maestro/a.
+          - generic [ref=e93]:
+            - generic [ref=e94]:
+              - generic [ref=e95]:
+                - checkbox [ref=e96]
+                - text: Evaluar contraseña manual
+                - button [ref=e97]:
+                  - img [ref=e98]
+                  - text: Activa para pegar y evaluar una contraseña manualmente
+              - generic [ref=e100]:
+                - checkbox [ref=e101]
+                - text: Comprobar brechas (HIBP) — opt-in
+                - button [ref=e102]:
+                  - img [ref=e103]
+                  - text: Habilita comprobar si la contraseña apareció en brechas conocidas (se envía solo el prefijo SHA-1).
+              - generic [ref=e105]:
+                - checkbox [ref=e106]
+                - text: Modo hardcore
+                - button [ref=e107]:
+                  - img [ref=e108]
+                  - text: Desglosa la contraseña por tokens y aplica reglas más estrictas de análisis.
+            - generic [ref=e110]:
+              - textbox [ref=e111]:
+                - /placeholder: Pega o escribe una contraseña para evaluar
+              - button [ref=e112] [cursor=pointer]: Limpiar
+              - button [ref=e113] [cursor=pointer]: ↺ Evaluar
+              - button [ref=e114] [cursor=pointer]: Comprobar ahora
+            - generic [ref=e115]: Activa para pegar y evaluar una contraseña manualmente.
+            - generic [ref=e116]: Habilita comprobar si la contraseña apareció en brechas conocidas. Solo se envía el prefijo SHA-1 según el protocolo k-anonymity.
+            - generic [ref=e117]: Desglosa la contraseña por tokens y aplica reglas más estrictas de análisis para desarrolladores y auditorías.
+          - generic [ref=e118]: "Fuente: ajustes (basado en ajustes)"
+    - generic [ref=e120]:
+      - generic [ref=e122]:
+        - text: Generado con ❤️ · Usa
+        - strong [ref=e123]: index.html
+        - text: localmente o sirve la carpeta para un comportamiento completo.
+      - generic [ref=e124]:
+        - text: "Atajo:"
+        - strong [ref=e125]: Shift+T
+  - dialog "Tutorial rápido" [ref=e126]:
+    - generic [ref=e127]:
+      - generic [ref=e128]: Tutorial rápido
+      - generic [ref=e129]:
+        - generic [ref=e130]: "Longitud: seguridad vs memoria"
+        - generic [ref=e131]: Aumentar longitud incrementa exponencialmente la entropía. Vamos a probar 24 caracteres.
+        - status [ref=e132]: "Entropía: 155 bits — 10.00G ops/s: 9.67e+28 años — Solo descifrable por futuros historiadores con máquinas del tiempo."
+      - generic [ref=e133]:
+        - button "Anterior" [disabled] [ref=e134] [cursor=pointer]
+        - button "Siguiente" [active] [ref=e135] [cursor=pointer]
+        - button "Cerrar" [ref=e136] [cursor=pointer]
+  - generic [ref=e137]: "PGW: listo"
+  - generic [ref=e138]: "Paso 1: Longitud: seguridad vs memoria. Aumentar longitud incrementa exponencialmente la entropía. Vamos a probar 24 caracteres."
+  - status
+```

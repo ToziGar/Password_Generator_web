@@ -191,6 +191,39 @@ if(document.readyState === 'loading'){
   updateCheckboxLabels();
 }
 
+// --- Manual controls show/hide (animated & accessible)
+function syncManualControls(){
+  const manual = el('manualControls');
+  if(!manual || !useCustom) return;
+  const open = !!useCustom.checked;
+  if(open){
+    manual.classList.remove('collapsed');
+    manual.classList.add('expanded');
+    manual.setAttribute('aria-hidden','false');
+    // enable contained controls
+    Array.from(manual.querySelectorAll('input,button,select,textarea')).forEach(i=>{ i.disabled = false; });
+    // focus the input for convenience
+    setTimeout(()=>{ try{ if(customPw && typeof customPw.focus === 'function') customPw.focus(); }catch(e){} }, 40);
+  }else{
+    manual.classList.remove('expanded');
+    manual.classList.add('collapsed');
+    manual.setAttribute('aria-hidden','true');
+    // disable contained controls to remove from tab order and prevent accidental use
+    Array.from(manual.querySelectorAll('input,button,select,textarea')).forEach(i=>{ if(i.id !== 'manualControls') i.disabled = true; });
+  }
+}
+
+// Initialize manual controls visibility and hook the checkbox
+try{
+  document.addEventListener('DOMContentLoaded', ()=>{
+    // Run initial sync
+    syncManualControls();
+    if(useCustom){
+      useCustom.addEventListener('change', syncManualControls);
+    }
+  });
+}catch(e){/* ignore */}
+
 // Also update on window resize (layout changes) and when focus returns (covers dynamic injection)
 window.addEventListener('resize', ()=>{ requestAnimationFrame(updateCheckboxLabels); });
 window.addEventListener('focus', ()=>{ requestAnimationFrame(updateCheckboxLabels); });
@@ -374,7 +407,8 @@ const FUNNY_PHRASES = [
   'Esta contraseña exige una taza de té y tranquilidad para ser atacada.',
   'Requiere permiso del consejo de seguridad intergaláctico para probarla.',
   'Se recomienda contársela solo a tu espejo y a tu mejor amigo imaginario.',
-  'Suena a leyenda urbana: "La contraseña que venció a los hackers".'
+  'Suena a leyenda urbana: "La contraseña que venció a los hackers".',
+  'Nivel: necesita un mapa y una brújula para ser crackeada.'
 ];
 
 // Additional playful phrases to increase variety (user requested +5)
@@ -394,6 +428,92 @@ const WEAK_FUNNY_PHRASES = [
   'Débil y coqueto — crece la longitud y mezcla tipos de caracteres para imponer respeto.',
   'Tiene encanto, pero hackers no son fans; añade más longitud y variedad.'
 ];
+
+// Expanded phrase banks per strength level (user requested many per level)
+const VERY_WEAK_PHRASES = [
+  'Muy débil: esto se rompe antes de que termines el café.',
+  'Muy débil: tan predecible como "1234" con sombrero.',
+  'Muy débil: protégela con una servilleta si puedes.',
+  'Muy débil: un susurro en una sala de gritos.',
+  'Muy débil: ni un gato la protegería.',
+  'Muy débil: con un soplo se desvanece.',
+  'Muy débil: fácil como abrir una lata con la mano.',
+  'Muy débil: su contraseña tiene permisos de invitado.',
+  'Muy débil: la podrías escribir en una postal.',
+  'Muy débil: la contraseña que regala flores al atacante.',
+  'Muy débil: parece un boceto, no una fortaleza.',
+  'Muy débil: cariño, eso no es una barrera, es una cortina.'
+];
+
+const WEAK_PHRASES = [
+  'Débil: mejora con símbolos y mayúsculas, no te duermas.',
+  'Débil: un poco de longitud y tendrás algo decente.',
+  'Débil: como una sombrilla en huracán, útil pero insuficiente.',
+  'Débil: ponle más capas, como una cebolla segura.',
+  'Débil: merece una mejora urgente (y café).',
+  'Débil: añade números, símbolos y un suspiro de misterio.',
+  'Débil: suena a letrero de “entrar libremente”',
+  'Débil: es un pasaporte vencido, necesita renovación.',
+  'Débil: intenta alargarla 6–8 caracteres más.',
+  'Débil: con dos cambios será aceptable.',
+  'Débil: cuida la longitud y mezcla caracteres.',
+  'Débil: mejora fácil — agrégale símbolos raros.'
+];
+
+const ACCEPTABLE_PHRASES = [
+  'Aceptable: no está mal, pero aún puede mejorar.',
+  'Aceptable: ya pasa el corte, añade longitud para respirar tranquilo.',
+  'Aceptable: suficiente para servicios de baja sensibilidad.',
+  'Aceptable: buen punto de partida, refuérzala donde importe.',
+  'Aceptable: no te preocupes demasiado, pero no la publiques.',
+  'Aceptable: mezcla alguna palabra rara y será muy buena.',
+  'Aceptable: sólido, pero no te confíes con datos valiosos.',
+  'Aceptable: pasaría una entrevista, quizá no una auditoría.',
+  'Aceptable: puedes dormir una siesta, pero con ojo abierto.',
+  'Aceptable: mejora la longitud y tendrás un campeón.',
+  'Aceptable: está bien — añade símbolos y será excelente.',
+  'Aceptable: tiene suficiente variedad para el día a día.'
+];
+
+const GOOD_PHRASES = [
+  'Buena: bien hecho — es respetable y consistente.',
+  'Buena: sólida, como un candado con sonrisa.',
+  'Buena: los hackers tendrán que sudar un poco.',
+  'Buena: tu futura yo te agradece la previsión.',
+  'Buena: apta para proteger cosas importantes.',
+  'Buena: mezcla inteligente de longitud y caracteres.',
+  'Buena: muy resistente, encantadora y firme.',
+  'Buena: como una muralla con puertas con código.',
+  'Buena: parece diseñada por un escriba de seguridad.',
+  'Buena: la recomendaría a mis nietos digitales.',
+  'Buena: excelente — ahora solo recuerda no compartirla.',
+  'Buena: cumple con los deberes y los supera con estilo.'
+];
+
+const IMPENETRABLE_PHRASES = [
+  'Impenetrable: esto merece una ovación y un cofre.',
+  'Impenetrable: necesitarías un mapa, una brújula y paciencia eterna.',
+  'Impenetrable: contraseña de leyenda, avisa a los historiadores.',
+  'Impenetrable: solo resoluble con una excavación arqueológica.',
+  'Impenetrable: construida por ingenieros de castillos medievales.',
+  'Impenetrable: si esto fuera un castillo, sería inexpugnable.',
+  'Impenetrable: podría detener un apocalipsis de contraseñas.',
+  'Impenetrable: tus datos están seguros, incluso de conspiraciones.',
+  'Impenetrable: digno de guardarlo en una caja fuerte y olvidar la llave.',
+  'Impenetrable: protección de grado legendario.',
+  'Impenetrable: invítala a café y dile que se lo merece.',
+  'Impenetrable: no la cambies salvo por otra igual de épica.'
+];
+
+// Helper: pick phrase based on entropy (bits)
+function pickPhraseForEntropy(entropy){
+  if(!isFinite(entropy)) return randomFrom(IMPENETRABLE_PHRASES);
+  if(entropy < 20) return randomFrom(VERY_WEAK_PHRASES);
+  if(entropy < 28) return randomFrom(WEAK_PHRASES);
+  if(entropy < 36) return randomFrom(ACCEPTABLE_PHRASES);
+  if(entropy < 60) return randomFrom(GOOD_PHRASES);
+  return randomFrom(IMPENETRABLE_PHRASES);
+}
 
 const IMPOSSIBLE_PHRASES = [
   '¡Imposible! Tendrías que contratar una excavación arqueológica para encontrar tiempo suficiente.',
@@ -574,11 +694,13 @@ function analyzePassword(pw){
 }
 
 function evaluateStrength(entropy){
-  if(entropy < 28) return {label:'Débil','colorPct':20};
-  if(entropy < 36) return {label:'Aceptable','colorPct':40};
-  if(entropy < 60) return {label:'Buena','colorPct':65};
-  if(entropy < 128) return {label:'Muy fuerte','colorPct':85};
-  return {label:'Prácticamente imposible','colorPct':100};
+  // Map entropy to five levels requested by the user:
+  // Muy débil, Débil, Aceptable, Buena, Impenetrable
+  if(entropy < 20) return {label:'Muy débil', colorPct:12};
+  if(entropy < 28) return {label:'Débil', colorPct:28};
+  if(entropy < 36) return {label:'Aceptable', colorPct:45};
+  if(entropy < 60) return {label:'Buena', colorPct:75};
+  return {label:'Impenetrable', colorPct:100};
 }
 
 function estimateCrackTime(entropy, rate){
@@ -625,23 +747,15 @@ function minutesLessThan(v, limit){ return v < limit ? v : limit }
 
 // Decide frases/feedback en función de la ENTROPÍA (más directo y accionable)
 function funnyFor(seconds, entropy){
-  // si no hay número, devolvemos imposible
-  if(!isFinite(seconds)) return pickImpossible();
-  // Umbrales por entropía (bits)
-  // - <28 bits: débil — aconsejar aumentar longitud o añadir tipos de caracteres
-  // - 28-35 bits: aceptable — sugerir mejorar
-  // - 36-59 bits: buena — frase ligera
-  // - 60-127 bits: muy fuerte — frase celebratoria
-  // - >=128 bits: prácticamente imposible — frases épicas
-  if(entropy >= 128) return pickImpossible();
-  if(entropy >= 60) return pickFunny();
-  if(entropy >= 36) return pickFunny();
-  if(entropy >= 28) {
-    // Slightly weak/acceptable: return a funny-but-helpful suggestion
-    return randomFrom(WEAK_FUNNY_PHRASES) + ' (Sugerencia: longitud + símbolos)';
+  // Prefer selection by entropy. seconds is informational for crack time but
+  // the user requested phrases categorized by strength (muy débil, débil,
+  // aceptable, buena, impenetrable). We'll choose based on entropy bits.
+  try{
+    return pickPhraseForEntropy(entropy);
+  }catch(e){
+    // Fallback to existing weak phrases if anything goes wrong
+    return randomFrom(WEAK_FUNNY_PHRASES);
   }
-  // <28: always humorous but instructive
-  return randomFrom(WEAK_FUNNY_PHRASES) + ' (Débil — aumenta longitud y mezcla tipos de caracteres.)';
 }
 
 function randomFrom(arr){ return arr[Math.floor(Math.random()*arr.length)]; }

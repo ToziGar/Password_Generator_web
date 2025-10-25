@@ -263,6 +263,13 @@ input[type=range]{width:100%}
   .controls-right.manual-row .manual-bottom .btn{flex:0 0 auto}
 }
 
+/* Animated show/hide for manual controls (accessible) */
+.controls-right.manual-row{overflow:hidden;transition:max-height 340ms cubic-bezier(.2,.9,.2,1),opacity 260ms ease,transform 260ms ease;max-height:800px}
+.controls-right.manual-row.collapsed{max-height:0;opacity:0;transform:translateY(-6px);pointer-events:none}
+.controls-right.manual-row.expanded{max-height:800px;opacity:1;transform:translateY(0);pointer-events:auto}
+
+/* When JS is disabled the controls remain visible by default; JS will add collapsed/expanded classes */
+
 /* Flex input helper */
 .flex-input{flex:1;min-width:160px;padding:8px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:transparent;color:var(--text)}
 

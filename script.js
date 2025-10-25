@@ -521,6 +521,63 @@ const IMPENETRABLE_PHRASES = [
   'Impenetrable: no la cambies salvo por otra igual de épica.'
 ];
 
+// Emoji per normalized level
+const LEVEL_EMOJI = {
+  'muy-debil': '💥',
+  'debil': '⚠️',
+  'aceptable': '👌',
+  'buena': '✅',
+  'impenetrable': '🛡️'
+};
+
+// Expand phrase banks to 20+ entries per level (added humorous variations)
+VERY_WEAK_PHRASES.push(
+  'Que alguien cierre la puerta: muy fácil de adivinar.',
+  'Casi como un letrero que dice "Pruébame".',
+  'Se rompe en el primer intento, literal.',
+  'Tan débil que merece un sticker de "probar otra".',
+  'Un souffle de seguridad: desaparece con un soplo.',
+  'Prefabricada para ser adivinada.',
+  'Podrías regalarla en una tarjeta postal.',
+  'Perfecta para un diccionario de contraseñas antiguas.',
+  'Si fuera una casa sería una choza.',
+  'Muy débil: no sufras, mejórala ahora.'
+);
+
+WEAK_PHRASES.push(
+  'Débil: añade un par de símbolos y respira mejor.',
+  'Débil: con un poco más de longitud pasa a aceptable.',
+  'Débil: piensa en una frase y úsala como núcleo.',
+  'Débil: protege mejor con mayúsculas intercaladas.',
+  'Débil: añade un carácter raro para despistar.',
+  'Débil: sugiere mejorar si guardas datos importantes.',
+  'Débil: demo de seguridad, necesita actualización.',
+  'Débil: fácil de recordar, demasiado fácil de adivinar.'
+);
+
+ACCEPTABLE_PHRASES.push(
+  'Aceptable: con un pequeño ajuste será excelente.',
+  'Aceptable: ya cumple, pero refuérzala donde importe.',
+  'Aceptable: suficiente para muchas cuentas, no para todo.',
+  'Aceptable: piensa en una palabra extra y añádela.',
+  'Aceptable: puedes mejorar el patrón con símbolos.'
+);
+
+GOOD_PHRASES.push(
+  'Buena: elegante y segura, buen trabajo.',
+  'Buena: robusta para la mayoría de usos diarios.',
+  'Buena: una buena elección para proteger información.',
+  'Buena: mantenla única y no la reutilices.',
+  'Buena: combina longitud y variedad con acierto.'
+);
+
+IMPENETRABLE_PHRASES.push(
+  'Impenetrable: un verdadero escudo para tus datos.',
+  'Impenetrable: digno de un cofre del tesoro.',
+  'Impenetrable: a salvo por generaciones.',
+  'Impenetrable: nivel mitológico de protección.'
+);
+
 // Helper: pick phrase based on entropy (bits)
 function pickPhraseForEntropy(entropy){
   if(!isFinite(entropy)) return randomFrom(IMPENETRABLE_PHRASES);
@@ -780,6 +837,8 @@ window.__pgw_last_phrase = window.__pgw_last_phrase || '';
 function showFunnyPhrase(text){
   // Avoid immediate repeat; if same as last, try to append a secondary funny line
   if(!text) return;
+  // prefix with level emoji when available
+  const prefix = (window.__pgw_level_emoji || '') + (window.__pgw_level_emoji ? ' ' : '');
   if(text === window.__pgw_last_phrase){
     // pick a secondary short suffix from FUNNY_PHRASES
     const extra = randomFrom(FUNNY_PHRASES);
@@ -791,9 +850,8 @@ function showFunnyPhrase(text){
     if(typeof funnyEl !== 'undefined' && funnyEl){
       funnyEl.classList.remove('show');
       void funnyEl.offsetWidth; // reflow
-      funnyEl.textContent = text;
+      funnyEl.textContent = prefix + text;
       funnyEl.classList.add('show');
-      // ensure screen readers notice the text change (aria-live already set in HTML)
     }
   }catch(e){ console.warn('showFunnyPhrase error', e); }
 }
@@ -815,7 +873,11 @@ function setStrengthUI(entropy, strength){
     if(strengthLabel){
       strengthLabel.className = 'strength-label';
       strengthLabel.classList.add('lv-' + levelNorm);
-      // ensure label text is still correct (render handles text)
+      // include emoji in the visual label
+      const emoji = LEVEL_EMOJI[levelNorm] || '';
+      try{ strengthLabel.innerHTML = `${emoji} Fuerza: ${strength.label}`; }catch(e){ strengthLabel.textContent = `Fuerza: ${strength.label}`; }
+      // store current emoji for phrase prefixing
+      window.__pgw_level_emoji = emoji;
     }
     // accessibility: update aria on meter bar
     if(meterBar) meterBar.setAttribute('aria-valuenow', Math.round(entropy));

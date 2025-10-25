@@ -15,7 +15,7 @@
 }
 .js-focus-visible :focus{outline: none}
 *{box-sizing:border-box}
-.SF, html,body{height:100%;margin:0;font-family:-apple-system, BlinkMacSystemFont, "SF Pro Text", "San Francisco", Inter, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;color:var(--text);background:var(--bg);-webkit-font-smoothing:antialiased}
+.SF, html,body{height:100%;margin:0;font-family:-apple-system, BlinkMacSystemFont, "SF Pro Text", "San Francisco", Inter, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;color:var(--text);background:var(--bg);-webkit-font-smoothing:antialiased;transition:background 240ms ease,color 220ms ease}
 .SF, html,body{background-image:var(--bg-accent);background-repeat:no-repeat;background-size:cover}
 .container{max-width:980px;margin:48px auto;padding:28px}
 .hero{margin-bottom:28px}
@@ -31,9 +31,15 @@
 /* Light theme overrides when html has data-theme="light" */
 html[data-theme="light"]{
   --bg: #f6fafc;
-  --text: #0b1220;
+  /* Lighter background accents for the light theme (overrides dark radial highlights) */
+  --bg-accent: radial-gradient(800px 420px at 8% 12%, rgba(79,70,229,0.06), transparent 8%), radial-gradient(700px 360px at 92% 84%, rgba(6,182,212,0.03), transparent 8%), linear-gradient(180deg,#ffffff,#f6fbff 60%);
+  --text: #071022;
   --muted: #4b5563;
   --card: rgba(11,17,24,0.02);
+  --surface: rgba(11,17,24,0.02);
+  --glass: rgba(11,17,24,0.04);
+  --surface-glass: rgba(11,17,24,0.02);
+  --shadow-strong: 0 8px 20px rgba(2,6,23,0.06);
   --accent: #4f46e5;
   --accent-2: #06b6d4;
 }
@@ -357,6 +363,17 @@ input[type=range]:focus::-webkit-slider-thumb{box-shadow:0 14px 28px rgba(109,40
 /* Use :has() to style label based on its input state (modern browsers). If :has is not supported the toggles remain usable but static. */
 .checkbox-row label:has(input[type=checkbox]:checked)::after{left:36px;background:linear-gradient(90deg,var(--accent-2),var(--accent))}
 .checkbox-row label:has(input[type=checkbox]:checked)::before{background:linear-gradient(90deg,var(--accent-2),var(--accent));border-color:rgba(109,40,217,0.18)}
+/* JS fallback: when :has isn't available we mirror the checked state on the label using data-checked="true" */
+.checkbox-row label[data-checked="true"]::after{left:36px;background:linear-gradient(90deg,var(--accent-2),var(--accent))}
+.checkbox-row label[data-checked="true"]::before{background:linear-gradient(90deg,var(--accent-2),var(--accent));border-color:rgba(109,40,217,0.18)}
+
+/* Improve placeholder and input contrast for accessibility */
+input::placeholder, textarea::placeholder{color:rgba(234,244,255,0.46)}
+.controls input, .controls select, .modal-input, .flex-input{border:1px solid rgba(255,255,255,0.10);background:linear-gradient(180deg, rgba(255,255,255,0.008), rgba(255,255,255,0.004));color:var(--text)}
+.controls input:focus, .controls select:focus, .modal-input:focus, .flex-input:focus{box-shadow:0 10px 30px rgba(109,40,217,0.12);border-color:rgba(109,40,217,0.18)}
+
+/* Make theme switch transitions feel smooth on supported browsers */
+html[data-theme="light"] .card, html[data-theme="light"] .modal-dialog{transition:box-shadow 220ms ease, background 220ms ease}
 
 
 /* ensure highlight visible on small screens */

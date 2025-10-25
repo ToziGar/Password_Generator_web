@@ -114,6 +114,61 @@ const crackEstimatesEl = el('crackEstimates');
 const kdfIterations = el('kdfIterations');
 const kdfEta = el('kdfEta');
 
+// THEME TOGGLE: apply saved theme or system preference and persist choice
+const themeToggle = el('themeToggle');
+function applyTheme(theme){
+  const html = document.documentElement;
+  if(theme === 'light'){
+    html.setAttribute('data-theme','light');
+    if(themeToggle) themeToggle.setAttribute('aria-pressed','true');
+    if(themeToggle) themeToggle.title = 'Cambiar a tema oscuro';
+  }else{
+    html.removeAttribute('data-theme');
+    if(themeToggle) themeToggle.setAttribute('aria-pressed','false');
+    if(themeToggle) themeToggle.title = 'Cambiar a tema claro';
+  }
+  try{ localStorage.setItem('pgw-theme', theme); }catch(e){}
+}
+
+;(function initTheme(){
+  try{
+    const saved = localStorage.getItem('pgw-theme');
+    if(saved === 'light' || saved === 'dark'){
+      applyTheme(saved);
+    } else {
+      // Respect system preference when not set
+      const prefersLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
+      applyTheme(prefersLight ? 'light' : 'dark');
+    }
+  }catch(e){ /* ignore storage errors */ }
+
+  if(themeToggle){
+    themeToggle.setAttribute('role','button');
+    // ensure aria-pressed is present
+    if(!themeToggle.hasAttribute('aria-pressed')) themeToggle.setAttribute('aria-pressed', 'false');
+    themeToggle.addEventListener('click', ()=>{
+      const curr = document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+      const next = (curr === 'light') ? 'dark' : 'light';
+      applyTheme(next);
+      // small pulse to indicate change
+      themeToggle.classList.add('pulse');
+      setTimeout(()=> themeToggle.classList.remove('pulse'), 800);
+    });
+  }
+})();
+
+// Fallback for checkbox styling when :has() is not available: keep label[data-checked] in sync
+document.querySelectorAll('.checkbox-row label').forEach(label => {
+  try{
+    const cb = label.querySelector('input[type=checkbox]');
+    if(!cb) return;
+    const sync = ()=> label.setAttribute('data-checked', cb.checked ? 'true' : 'false');
+    // initialize
+    sync();
+    cb.addEventListener('change', sync);
+  }catch(e){/* ignore */}
+});
+
 // Opciones
 const SYMBOLS = "!@#$%^&*()_+[]{}<>?,.;:-=_~";
 const LOWER = 'abcdefghijklmnopqrstuvwxyz';

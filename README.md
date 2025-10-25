@@ -26,122 +26,95 @@ Seguridad y privacidad (resumen)
 - HIBP es opcional y requiere consentimiento explícito. El flujo implementado respeta k‑anonymity — sólo se envía el prefijo SHA‑1 de 5 hex al servicio público de HIBP.
 - Los backups exportados están cifrados con AES‑GCM; la clave se deriva con PBKDF2 (SHA‑256) usando salt aleatorio y el número de iteraciones seleccionado por el usuario. La contraseña maestra no se guarda en ningún lugar.
 
+# Generador de Contraseñas — Password_Generator_web
+
+**Versión:** 1.0 — 2025-10-25
+
+Descripción
+-----------
+SPA estática (HTML/CSS/JS) para generar contraseñas y passphrases seguras en el navegador. Está diseñada para demostraciones locales y uso personal: todas las operaciones criptográficas se realizan en el cliente (Web Crypto + Web Worker). El objetivo de este proyecto es ofrecer una experiencia segura, accesible y visualmente atractiva.
+
+Características principales
+--------------------------
+- Generación de contraseñas y passphrases (configurables).
+- Generación determinista reproducible (semilla -> HMAC‑DRBG en `worker.js`).
+- Evaluación de entropía y estimaciones de tiempo de crack para distintas tasas de ataque.
+- HIBP opt‑in (k‑anonymity): solo si el usuario lo permite se solicita el prefijo SHA‑1 al servicio público.
+- Export / Import cifrado (PBKDF2 + AES‑GCM). Iteraciones configurables (50k–800k).
+- Operaciones pesadas en Web Worker para mantener la UI reactiva.
+- Tutorial interactivo con spotlight y tooltip (accesible y orientado a la usabilidad).
+
+Seguridad y privacidad
+----------------------
+- Todo el cifrado y derivado de claves ocurre en el cliente. La app no envía contraseñas por defecto.
+- HIBP es completamente opcional y respeta k‑anonymity.
+- Los backups cifrados guardan salt/iv/iterations y el ciphertext en un JSON; la contraseña maestra no se almacena.
+
+Diseño y UX
+----------
+Se incluyó Bootstrap 5 para utilidades y layout, y GSAP para animaciones suaves. He aplicado mejoras visuales: fondos con gradientes radiales, tarjetas elevadas, micro‑interacciones y una entrada elegante del hero para una apariencia moderna y cuidada.
+
+Cómo ejecutar (local)
+---------------------
+1. Servir la carpeta del proyecto (recomendado para evitar limitaciones de `file://` con Web Worker):
+
+```powershell
+python -m http.server 8000
+# Abre: http://localhost:8000
+```
+
+2. (Opcional) Instalar dependencias para tests y Playwright:
+
+```powershell
+npm install
+npx playwright install
+```
+
+Ejecutar pruebas (Playwright)
+-----------------------------
+```powershell
+npx playwright test --project=chromium
+```
+
+Los reportes y artefactos se guardan en `playwright-report/`, `test-results/` y `tests/screenshots/`.
+
+Accesibilidad
+-------------
+Se integró `axe-core` en la suite Playwright para comprobaciones automáticas de WCAG2AA en los flujos críticos (pantalla principal, tutorial y modales). Aun así, recomiendo pruebas manuales con lector de pantalla y navegación por teclado.
+
 Formato del backup cifrado
 -------------------------
-El fichero exportado es JSON con la forma:
+Ejemplo simplificado:
 
 ```json
 {
-    # Generador de Contraseñas — Password_Generator_web
+  "version": 1,
+  "kdf": "pbkdf2",
+  "salt": "<base64>",
+  "iterations": 200000,
+  "iv": "<base64>",
+  "ciphertext": "<base64>"
+}
+```
 
-    Versión: 1.0
-    Fecha: 2025-10-25
+CI
+--
+Existe un workflow en `.github/workflows/playwright.yml` que ejecuta Playwright en push/PRs y sube artifacts para diagnóstico. Se puede ampliar para bloquear PRs con diffs visuales.
 
-    ## Resumen
+Cómo contribuir
+---------------
+- Haz fork y crea una rama por funcionalidad.
+- Si tocas criptografía, añade tests y justificación técnica.
 
-    Este proyecto es una SPA (HTML/CSS/JS) para generar contraseñas y passphrases de forma segura en el cliente. Está diseñada para demostraciones locales y aprendizaje: todas las operaciones criptográficas se ejecutan en el navegador (Web Crypto + Web Worker). Incluye un tutorial interactivo con spotlight y tooltip, exportación cifrada (PBKDF2 + AES‑GCM), comprobación opcional en HaveIBeenPwned (k‑anonymity) y un worker fallback para entornos locales.
+¿Qué quieres que mejore ahora?
+--------------------------------
+- Pulir paleta de colores o añadir más temas (modo claro/oscuro).
+- Añadir micro‑animaciones (GSAP) a acciones concretas.
+- Reemplazar PBKDF2 por Argon2 (WASM) para mayor resistencia frente a GPU (necesita trabajo extra).
 
-    ## Estado actual (resumen de avances)
-
-    - Generación determinista reproducible (HMAC‑DRBG en `worker.js`) — implementada.
-    - PBKDF2 + AES‑GCM export/import con salt/iv y esquema JSON — implementado.
-    - Worker para operaciones costosas (sha1, sha256, pbkdf2, hmacDrbg) + blob fallback — implementado.
-    - Tutorial interactivo con spotlight, etiqueta/CTA en el tooltip y posicionamiento/clamping robusto — implementado.
-    - Fallbacks: embedded wordlist y worker blob fallbacks para demos locales — implementados.
-    - Pruebas headless (Playwright) — scripts añadidos; ejecutar `npx playwright test` localmente para verificar el flujo de tutorial/tooltip.
-
-    ## Estructura del repo
-
-    - `index.html` — Interfaz de usuario principal y controles del generador.
-    - `styles.css` — Tema, tokens y estilos del tutorial/spotlight/tooltip.
-    - `script.js` — Lógica de la app: generación, KDF, export/import, HIBP, worker wrapper y el motor del tutorial.
-    - `worker.js` — Implementación del worker (también inyectado como blob fallback cuando es necesario).
-    - `wordlist.txt` — (opcional) lista de palabras para passphrases; la app maneja un fallback incorporado si falta.
-    - `tests/` — Playwright tests (smoke tests que validan la apertura del tutorial y la presencia del tooltip/CTA).
-
-    ## Cómo ejecutar (desarrollo / demo)
-
-    Recomendado: servir la carpeta por HTTP para evitar restricciones de `file://` con `Worker`.
-
-    Desde PowerShell (carpeta raíz del repo):
-
-    ```powershell
-    python -m http.server 8000
-    # Abre en tu navegador: http://localhost:8000
-    ```
-
-    Atajos importantes
-
-    - Abrir tutorial: Shift+T (también hay un botón en la UI).
-
-    ## Pruebas automatizadas (Playwright)
-
-    Se añadió una pequeña suite de smoke tests con Playwright para verificar la interfaz del tutorial y el tooltip/CTA.
-
-    Instalación de dependencias (si necesitas ejecutar localmente los tests):
-
-    ```powershell
-    npm install
-    npx playwright install
-    ```
-
-    Ejecutar tests headless (Chromium):
-
-    ```powershell
-    npx playwright test --project=chromium
-    ```
-
-    > Nota: en esta sesión intenté ejecutar los tests desde el entorno de desarrollo, pero el terminal devolvió una interrupción en la ejecución; los tests están añadidos al repo y están listos para ejecutarse localmente (si ves algún fallo, asegúrate de arrancar el servidor HTTP y de instalar los navegadores con `npx playwright install`).
-
-    ## Backup cifrado (export / import)
-
-    Los backups exportados son JSON con la siguiente forma:
-
-    ```json
-    {
-      "version": 1,
-      "kdf": "pbkdf2",
-      "salt": "<base64>",
-      "iterations": 200000,
-      "iv": "<base64>",
-      "ciphertext": "<base64>"
-    }
-    ```
-
-    La app cifra el JSON de datos con AES‑GCM usando una clave derivada por PBKDF2(SHA‑256). Ajusta `iterations` según el balance seguridad/latencia que desees.
-
-    ## Seguridad y privacidad
-
-    - Todo ocurre en el cliente (no se envían contraseñas por defecto).
+Indica cuál prefieres y lo implemento.
     - HIBP es opt‑in y usa k‑anonymity (sólo se envía el prefijo SHA‑1 de 5 hex).
+
     - Usa una contraseña maestra fuerte para los backups cifrados.
-
-    ## Estado del TODO (corto)
-
-    - Add CTA to tooltip — completed
-    - Adjust tooltip colors for light theme — completed
-    - Improve tooltip repositioning/clamping — completed
-    - Add Playwright headless smoke test — completed
-    - Run interactive smoke test (manual) — completed (basic verification via Playwright smoke tests added; se recomienda una verificación visual manual en distintos navegadores y tamaños de pantalla antes de publicar)
-
-    ## Próximos pasos sugeridos (opciones)
-
-    1. Hacer QA visual manual en Chrome/Firefox/Safari y dispositivos móviles (verificar el spotlight y la etiqueta/CTA en distintos tamaños y temas).
-    2. Añadir un modal `showInfoModal()` para la CTA (enlace la etiqueta/CTA a un modal con explicación ampliada en lugar de una acción rápida).
-    3. Reemplazar PBKDF2 por Argon2 (WASM) si prefieres mayor resistencia a ataques GPU/ASIC; implica añadir un binario WASM y adaptaciones de API.
-    4. Añadir tests unitarios JS (encrypt/decrypt, determinismo DRBG) y configurar CI (GitHub Actions) para ejecutar Playwright en un runner.
-
-    ## Cómo contribuir
-
-    - Crea un fork y un branch para tus cambios.
-    - Abre un PR con descripción clara y, si afecta seguridad/criptografía, añade pruebas y razones técnicas.
-
-    ## Contacto y licencia
-
-    Revisa `LICENSE` en la raíz para detalles de licencia. Para preguntas abre un issue en el repo.
-
-    ----
-
-    Si quieres, implemento ahora alguna de las opciones de "próximos pasos" (por ejemplo: convertir la CTA en un modal informativo y añadir una prueba visual que capture screenshots con Playwright). Dime cuál prefieres y lo hago.
 
 

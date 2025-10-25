@@ -84,30 +84,88 @@ test.describe('Tutorial spotlight smoke', ()=>{
 
 });
 
-test('quick accessibility scan (axe)', async ({ page }) => {
+test('expanded accessibility scan (axe) for main flows', async ({ page }) => {
   const fs = require('fs');
+  // load page
   await page.goto('/');
-  // Attempt to load local axe-core, fallback to CDN
-  let axeSource = null;
-  try {
-    axeSource = fs.readFileSync(require.resolve('axe-core/axe.min.js'), 'utf8');
-  } catch (e) {
-    await page.addScriptTag({ url: 'https://cdnjs.cloudflare.com/ajax/libs/axe-core/4.6.3/axe.min.js' });
+  await page.waitForLoadState('domcontentloaded');
+
+  // helper to inject axe
+  async function injectAxe(){
+    try {
+      const axeSource = fs.readFileSync(require.resolve('axe-core/axe.min.js'), 'utf8');
+      await page.addScriptTag({ content: axeSource });
+      return true;
+    } catch (e) {
+      await page.addScriptTag({ url: 'https://cdnjs.cloudflare.com/ajax/libs/axe-core/4.6.3/axe.min.js' });
+      return true;
+    }
   }
-  if (axeSource) await page.addScriptTag({ content: axeSource });
 
-  const result = await page.evaluate(async () => {
-    // eslint-disable-next-line no-undef
-    return await axe.run(document, { runOnly: { type: 'tag', values: ['wcag2aa'] } });
-  });
+  // helper to run axe and save
+  async function runAxe(name){
+    const result = await page.evaluate(async () => {
+      // eslint-disable-next-line no-undef
+      return await axe.run(document, { runOnly: { type: 'tag', values: ['wcag2aa'] } });
+    });
+    const outDir = 'test-results/axe';
+    try { fs.mkdirSync(outDir, { recursive: true }); } catch (e) {}
+    fs.writeFileSync(`${outDir}/${name}.json`, JSON.stringify(result, null, 2));
+    const violations = result.violations || [];
+    const problematic = violations.filter(v => v.impact === 'critical' || v.impact === 'serious');
+    console.log(`${name}: ${violations.length} violations, ${problematic.length} critical/serious`);
+    return problematic.length === 0;
+  }
 
-  const outDir = 'test-results/axe';
-  try { fs.mkdirSync(outDir, { recursive: true }); } catch (e) {}
-  fs.writeFileSync(`${outDir}/axe-report.json`, JSON.stringify(result, null, 2));
+  await injectAxe();
 
-  const violations = result.violations || [];
-  const problematic = violations.filter(v => v.impact === 'critical' || v.impact === 'serious');
-  console.log(`axe: found ${violations.length} violations, ${problematic.length} critical/serious`);
-  // Fail if any critical/serious issues
-  expect(problematic.length).toBe(0);
+  // baseline
+  let ok = await runAxe('main');
+
+  // tutorial flow
+  try {
+    const tutorialBtn = page.locator('#tutorialBtn');
+    if (await tutorialBtn.count()){
+      await tutorialBtn.click();
+      await page.waitForTimeout(600);
+      ok = ok && await runAxe('tutorial-open');
+      const closeBtn = page.locator('#tutorialClose');
+      if (await closeBtn.count()) await closeBtn.click(); else await page.keyboard.press('Escape');
+      await page.waitForTimeout(300);
+    }
+  } catch(e){ console.warn('tutorial flow skipped:', e.message); }
+
+  // info modal flow
+  try {
+    const cta = page.locator('#pgw-tutorial-spot-label .label-cta');
+    if (await cta.count()){
+      await cta.click();
+      await page.waitForTimeout(300);
+    } else {
+      const infoBtn = page.locator('#infoBtn, button:has-text("Info"), [data-info]');
+      if (await infoBtn.count()){
+        await infoBtn.first().click();
+        await page.waitForTimeout(300);
+      }
+    }
+    ok = ok && await runAxe('info-modal');
+    const modalClose = page.locator('#infoModal button.close, #infoModal [data-close], .modal .close');
+    if (await modalClose.count()) await modalClose.first().click(); else await page.keyboard.press('Escape');
+    await page.waitForTimeout(300);
+  } catch(e){ console.warn('info modal flow skipped:', e.message); }
+
+  // export flow
+  try {
+    const exportBtn = page.locator('#exportBtn, button:has-text("Export"), [data-export]');
+    if (await exportBtn.count()){
+      await exportBtn.first().click();
+      await page.waitForTimeout(300);
+      ok = ok && await runAxe('export-modal');
+      const exportClose = page.locator('.export-modal button.close, [data-close-export]');
+      if (await exportClose.count()) await exportClose.first().click(); else await page.keyboard.press('Escape');
+      await page.waitForTimeout(300);
+    }
+  } catch(e){ console.warn('export flow skipped:', e.message); }
+
+  expect(ok).toBe(true);
 });
